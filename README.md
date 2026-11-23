@@ -28,7 +28,7 @@ Needs Node 18 or newer. Everything runs on a local chain, with no wallet or netw
 
 ```bash
 npm install
-npm test          # 56 tests
+npm test          # 58 tests
 npm run demo      # one healthy call, two refunded ones
 ```
 
@@ -44,9 +44,10 @@ npm run demo      # one healthy call, two refunded ones
 | `verifier/payment.js` | Reads the x402 settlement receipt and confirms the USDC transfer on-chain |
 | `verifier/netguard.js` | Refuses provider URLs that aren't https or that resolve to internal addresses |
 | `sdk/index.js` | Agent client: `call()` and `trust()` |
-| `api/` | Surety Market Data API: the first bonded provider (see below) |
+| `marketdata/` | Surety Market Data API: the first bonded provider (see below) |
 | `examples/` | A real x402-paid API and paying client (official x402 SDK), plus mocks for tests |
-| `scripts/` | Deploy, local demo, testnet check, gas and latency measurements |
+| `app.js`, `start.js` | Hosting entry points: Vercel, and an always-on server |
+| `scripts/` | Deploy, local demo, testnet and API checks, host registration, gas and latency measurements |
 | `test/` | Contract tests, a randomised invariant test, and end-to-end tests through the relay |
 
 ## For providers: the SLA document
@@ -99,7 +100,7 @@ The check runs a real x402-paid API locally, bonds it, puts the relay in front o
 
 ## The first provider: Surety Market Data API
 
-`api/` is a small paid API, built to be bonded on Surety itself. It reads Monad prices straight from Uniswap-V3-style pools on-chain, so there is no third-party data feed behind it, and sells each call over x402.
+`marketdata/` is a small paid API, built to be bonded on Surety itself. It reads Monad prices straight from Uniswap-V3-style pools on-chain, so there is no third-party data feed behind it, and sells each call over x402.
 
 | Endpoint | Returns |
 | --- | --- |
@@ -115,11 +116,25 @@ Limits: it reads Uniswap V3 pools only, so liquidity that sits on other venues i
 
 ## Hosting it
 
-`npm start` runs the relay and the Market Data API together on one port. On boot it points your on-chain provider record at the server's public address.
+The relay and the Market Data API run together behind one address. Two ways to host them:
 
-`render.yaml` is a ready blueprint for Render: build `npm ci --omit=dev`, start `node start.js`. Set two environment variables in the host's dashboard, never in a file: `VAULT_ADDRESS` and `PRIVATE_KEY` (a testnet-only wallet that is the vault's arbiter and the provider). The public address is picked up from the host, or set `PUBLIC_URL` yourself.
+**Vercel.** `app.js` exports the combined Express app, which Vercel deploys with no extra config. In the project settings add `PRIVATE_KEY`, `VAULT_ADDRESS` and `PUBLIC_URL` (the production https address, no trailing slash). After the first deploy, run once from your own machine:
 
-Use an always-on plan. A host that sleeps when idle answers its first call slowly, and a slow paid call is refunded from your bond. Evidence files and call history are kept on local disk, so they reset on redeploy unless you attach a persistent disk and set `DATA_DIR`.
+```bash
+node scripts/set-host.js https://<your-domain>
+```
+
+That checks the deployment and points your on-chain provider record at it.
+
+**An always-on server** (Render, Railway, a VPS). `npm start` listens on `PORT` and registers itself at boot. `render.yaml` is a ready blueprint; set `VAULT_ADDRESS` and `PRIVATE_KEY` in the host's dashboard.
+
+Either way, `PRIVATE_KEY` is a testnet-only wallet that is the vault's arbiter and the provider. Set it in the host's dashboard, never in a file.
+
+Things to know:
+
+- **Cold starts count against you.** A host that has gone idle answers its first call slowly, and a slow paid call is refunded from your bond.
+- **Call history is kept on local disk.** On serverless hosts that disk is temporary, so pass rates in the trust score reset whenever the function restarts. On-chain numbers (bond, claims paid) are unaffected.
+- **One relay instance at a time.** Claims are sent in order within one process. Several instances sharing one arbiter key can collide.
 
 Once it is up, anyone can try it with their own wallet and a little testnet USDC:
 

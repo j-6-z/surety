@@ -5,8 +5,8 @@
 // Reading mainnet prices is free: no mainnet wallet or funds are involved.
 const { ethers } = require("ethers");
 const { main } = require("./testnet-check");
-const { createMarketApi } = require("../api/server");
-const { createPriceReader, MONAD_MAINNET } = require("../api/prices");
+const { createMarketApi } = require("../marketdata/server");
+const { createPriceReader, MONAD_MAINNET } = require("../marketdata/prices");
 
 if (require.main === module) {
   require("dotenv").config();

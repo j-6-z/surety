@@ -7,8 +7,8 @@ const { createRelay } = require("../verifier/relay");
 const { createSuretyClient } = require("../sdk");
 const { createPayingFetch } = require("../examples/x402-client");
 const { startFakeFacilitator } = require("../examples/fake-facilitator");
-const { createPriceReader, priceFromSqrt } = require("../api/prices");
-const { createMarketApi } = require("../api/server");
+const { createPriceReader, priceFromSqrt } = require("../marketdata/prices");
+const { createMarketApi } = require("../marketdata/server");
 const { matchEndpoint } = require("../verifier/sla");
 
 const usd = (n) => ethers.parseUnits(String(n), 6);
@@ -263,5 +263,46 @@ describe("start.js: relay and API on one port", function () {
       await s.close();
       await new Promise((r) => facilitator.close(r));
     }
+  });
+});
+
+describe("app.js (Vercel entry point)", () => {
+  const load = (env) => {
+    const saved = { ...process.env };
+    for (const k of ["PRIVATE_KEY", "VAULT_ADDRESS", "PUBLIC_URL", "VERCEL", "VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL"]) delete process.env[k];
+    Object.assign(process.env, env);
+    delete require.cache[require.resolve("../app")];
+    try {
+      return require("../app");
+    } finally {
+      process.env = saved;
+    }
+  };
+  const serve = async (app, pathname) => {
+    const server = require("http").createServer(app);
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const res = await fetch(`http://127.0.0.1:${server.address().port}${pathname}`);
+      return { status: res.status, body: await res.json() };
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  };
+
+  it("explains itself instead of crashing when settings are missing", async () => {
+    const r = await serve(load({}), "/health");
+    expect(r.status).to.equal(500);
+    expect(r.body.error).to.equal("surety_not_configured");
+  });
+
+  it("exports a working app when configured, with the SLA at the public address", async () => {
+    const app = load({
+      PRIVATE_KEY: ethers.Wallet.createRandom().privateKey, VAULT_ADDRESS: ethers.Wallet.createRandom().address,
+      PUBLIC_URL: "https://surety.example/", VERCEL: "1",
+    });
+    expect((await serve(app, "/health")).body.ok).to.equal(true);
+    const sla = (await serve(app, "/.well-known/surety.json")).body;
+    expect(sla.baseUrl).to.equal("https://surety.example");
+    expect((await serve(app, "/trust/not-an-address")).status).to.equal(400); // relay routes are mounted
   });
 });

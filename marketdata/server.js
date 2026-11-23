@@ -47,7 +47,7 @@ const POOL_SCHEMA = {
  */
 function createMarketApi(o) {
   const price = o.price || "$0.001";
-  const maxLatencyMs = o.maxLatencyMs ?? 8000;
+  const maxLatencyMs = o.maxLatencyMs ?? 4000; // measured on testnet: 1.3 to 1.6 s including payment settlement
   let baseUrl = o.publicUrl || "";
 
   const scheme = new ExactEvmScheme();
