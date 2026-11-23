@@ -46,6 +46,10 @@ const fmt = (v) => `${ethers.formatUnits(v, 6)} USDC`;
  * @param {string} [c.explorer]
  * @param {number} [c.slowMs] @param {number} [c.slowMaxMs]
  * @param {number} [c.apiPort] @param {number} [c.relayPort]
+ * @param {(ctx: {payTo: string}) => {listen: Function, close: Function, slaUrl: Function}} [c.createApi]
+ *        the paid API to bond and call; defaults to the three-endpoint demo API
+ * @param {Array<[string, "pass"|"fail"]>} [c.calls]  paths to call and the verdict each should get
+ * @param {boolean} [c.showBody]  print each successful response
  * @param {(msg: string) => void} [c.log]
  */
 async function main(c) {
@@ -90,10 +94,13 @@ async function main(c) {
 
   // ---- 3. the paid API. Payments go to a separate address derived from this key.
   const payTo = new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(`surety-payto:${wallet.privateKey}`))).address;
-  const api = createX402Provider({
-    network: c.network, usdc: c.usdcAddress, payTo, facilitatorUrl: c.facilitatorUrl,
-    price: "$0.001", slowMs: c.slowMs ?? 6000, slowMaxMs: c.slowMaxMs ?? 2000,
-  });
+  const api = c.createApi
+    ? c.createApi({ payTo })
+    : createX402Provider({
+        network: c.network, usdc: c.usdcAddress, payTo, facilitatorUrl: c.facilitatorUrl,
+        price: "$0.001", slowMs: c.slowMs ?? 6000, slowMaxMs: c.slowMaxMs ?? 2000,
+      });
+  const calls = c.calls || [["/quote", "pass"], ["/slow", "fail"], ["/broken", "fail"]];
   await api.listen(c.apiPort ?? 4021);
   log(`  paid API running, payments go to ${payTo}`);
 
@@ -121,9 +128,9 @@ async function main(c) {
     });
 
     // ---- 6. three paid calls
-    log("\nMaking three paid calls through the relay...");
+    log(`\nMaking ${calls.length} paid call${calls.length === 1 ? "" : "s"} through the relay...`);
     const results = [];
-    for (const [pathname, want] of [["/quote", "pass"], ["/slow", "fail"], ["/broken", "fail"]]) {
+    for (const [pathname, want] of calls) {
       const row = { path: pathname, want };
       try {
         const r = await client.call(me, pathname);
@@ -132,7 +139,9 @@ async function main(c) {
           refund: r.claim ? fmt(r.claim.payout) : "none", claimTx: r.claim?.tx, claimError: r.claimError,
           receipt: r.response.headers.get("payment-response") ? "yes" : "NO",
         });
-        if (r.response.status !== 200) row.body = (await r.response.text()).slice(0, 300);
+        const text = await r.response.text();
+        if (r.response.status !== 200) row.body = text.slice(0, 300);
+        else if (c.showBody) row.data = text.slice(0, 400);
         if (r.response.status === 402) row.paymentRequired = decode(r.response.headers.get("payment-required"));
       } catch (e) {
         row.error = String(e.message).slice(0, 400);
@@ -150,7 +159,8 @@ async function main(c) {
     const p1 = await vault.providers(me);
     const good = results.filter((r) => r.ok).length;
     log(`\nBond now ${fmt(p1.bond)}. Claims paid on this vault: ${p1.claimCount} (${fmt(p1.claimsPaid)}).`);
-    log(`RESULT: ${good}/3 calls behaved as expected.${good === 3 ? " Surety works against real x402 on this network." : " Paste this whole output to Claude."}`);
+    const all = good === calls.length;
+    log(`RESULT: ${good}/${calls.length} calls behaved as expected.${all ? " Surety works against real x402 on this network." : " Paste this whole output to Claude."}`);
     return { results, provider: p1 };
   } finally {
     if (relay) await new Promise((r) => relay.close(r));
@@ -183,7 +193,7 @@ if (require.main === module) {
     usdcAddress: process.env.USDC_ADDRESS || "0x534b2f3A21130d7a60830c2Df862319e593943A3",
     network: "eip155:10143",
     facilitatorUrl: process.env.FACILITATOR_URL || "https://x402-facilitator.molandak.org",
-    explorer: "https://testnet.monadexplorer.com",
+    explorer: "https://testnet.monadvision.com",
   }).then(
     () => process.exit(0),
     (e) => {

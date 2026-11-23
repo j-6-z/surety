@@ -36,8 +36,25 @@ function validateSlaDoc(doc) {
   return { version: 1, baseUrl: baseUrl.origin, payTo: ethers.getAddress(doc.payTo), endpoints };
 }
 
+/// Paths may contain `:name` segments, e.g. "/v1/pool/:address" covers every pool.
+const patterns = new Map();
+function pathMatches(pattern, pathname) {
+  if (!pattern.includes(":")) return pattern === pathname;
+  let re = patterns.get(pattern);
+  if (!re) {
+    const body = pattern
+      .split("/")
+      .map((seg) => (seg.startsWith(":") ? "[^/]+" : seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+      .join("/");
+    re = new RegExp(`^${body}$`);
+    patterns.set(pattern, re);
+  }
+  return re.test(pathname);
+}
+
 function matchEndpoint(sla, method, pathname) {
-  return sla.endpoints.find((e) => e.method === method.toUpperCase() && e.path === pathname) || null;
+  const m = method.toUpperCase();
+  return sla.endpoints.find((e) => e.method === m && pathMatches(e.path, pathname)) || null;
 }
 
 /// Objective checks only: status, latency, JSON shape. Never "was the answer good".

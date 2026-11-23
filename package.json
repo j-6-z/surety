@@ -9,7 +9,9 @@
     "bench": "hardhat run scripts/bench.js",
     "deploy:testnet": "hardhat run scripts/deploy.js --network monadTestnet",
     "check:testnet": "node scripts/testnet-check.js",
-    "relay": "node verifier/server.js"
+    "relay": "node verifier/server.js",
+    "api": "node api/server.js",
+    "check:api": "node scripts/api-check.js"
   },
   "keywords": [
     "x402",

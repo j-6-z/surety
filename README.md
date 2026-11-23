@@ -28,7 +28,7 @@ Needs Node 18 or newer. Everything runs on a local chain, with no wallet or netw
 
 ```bash
 npm install
-npm test          # 45 tests
+npm test          # 55 tests
 npm run demo      # one healthy call, two refunded ones
 ```
 
@@ -44,6 +44,7 @@ npm run demo      # one healthy call, two refunded ones
 | `verifier/payment.js` | Reads the x402 settlement receipt and confirms the USDC transfer on-chain |
 | `verifier/netguard.js` | Refuses provider URLs that aren't https or that resolve to internal addresses |
 | `sdk/index.js` | Agent client: `call()` and `trust()` |
+| `api/` | Surety Market Data API: the first bonded provider (see below) |
 | `examples/` | A real x402-paid API and paying client (official x402 SDK), plus mocks for tests |
 | `scripts/` | Deploy, local demo, testnet check, gas and latency measurements |
 | `test/` | Contract tests, a randomised invariant test, and end-to-end tests through the relay |
@@ -95,6 +96,22 @@ const r = await surety.call(provider, "/quote"); // r.response, r.verdict, r.cla
 The check runs a real x402-paid API locally, bonds it, puts the relay in front of it and makes three paid calls through Monad's x402 facilitator. Expect `RESULT: 3/3`. It lowers the vault's minimum bond to 0.5 USDC, because the faucet only gives 1.
 
 `npm run relay` starts the relay on its own, on port 8402.
+
+## The first provider: Surety Market Data API
+
+`api/` is a small paid API, built to be bonded on Surety itself. It reads Monad prices straight from Uniswap-V3-style pools on-chain, so there is no third-party data feed behind it, and sells each call over x402.
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /v1/price/mon` | MON price in USD from the deepest WMON/USDC pool, with the pool address, its USDC depth and the block |
+| `GET /v1/pool/:address` | Price both ways and token reserves for any V3-style pool |
+| `GET /`, `/health`, `/.well-known/surety.json` | Free: description, health, and the SLA |
+
+It refuses to quote from a pool holding under 1,000 USDC (`MIN_POOL_USDC`), and a call that ends in an error is never charged, because x402 only settles on success.
+
+`npm run check:api` runs it locally with real Monad mainnet prices, bonds it on your testnet vault and buys two calls through the relay. `npm run api` starts it by itself; set `PAY_TO_ADDRESS` in `.env`.
+
+Limits: it reads Uniswap V3 pools only, so liquidity that sits on other venues is not seen, and a spot pool price can be moved by a large trade. It is a demo provider, not a price oracle.
 
 ## Known limits
 
