@@ -255,7 +255,7 @@ function createRelay(o) {
     send(res, upstream.status, out, bodyBuf);
   }
 
-  const server = http.createServer(async (req, res) => {
+  const handle = async (req, res) => {
     try {
       const url = new URL(req.url, "http://relay");
       const parts = url.pathname.split("/");
@@ -271,7 +271,9 @@ function createRelay(o) {
     } catch (e) {
       if (!res.headersSent) send(res, e.status || 502, json(), JSON.stringify({ error: e.message }));
     }
-  });
+  };
+  const server = http.createServer(handle);
+  server.handle = handle; // lets another HTTP server mount the relay's routes
   server.trust = trust;
   server.on("close", () => logStream.end());
   return server;

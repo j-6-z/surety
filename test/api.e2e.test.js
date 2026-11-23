@@ -202,3 +202,66 @@ describe("Market Data API", function () {
     });
   });
 });
+
+describe("start.js: relay and API on one port", function () {
+  this.timeout(60_000);
+
+  it("registers itself, serves the API and relays a paid call from a separate agent wallet", async () => {
+    const { startSurety } = require("../start");
+    const T = await ethers.getContractFactory("MockToken");
+    const wmon = await T.deploy("Wrapped MON", "WMON", 18);
+    const dataUsdc = await T.deploy("USD Coin", "USDC", 6);
+    const factory = await (await ethers.getContractFactory("MockV3Factory")).deploy();
+    const usdcIs0 = (await dataUsdc.getAddress()).toLowerCase() < (await wmon.getAddress()).toLowerCase();
+    const pool = await (await ethers.getContractFactory("MockV3Pool")).deploy(
+      await wmon.getAddress(), await dataUsdc.getAddress(), 3000, sqrtPriceFor(0.0117, usdcIs0)
+    );
+    await dataUsdc.mint(await pool.getAddress(), usd(68_000));
+    await factory.setPool(await wmon.getAddress(), await dataUsdc.getAddress(), 3000, await pool.getAddress());
+
+    const operator = ethers.Wallet.createRandom().connect(ethers.provider); // owner, arbiter and provider
+    const agent = ethers.Wallet.createRandom().connect(ethers.provider); // a different wallet
+    for (const w of [operator, agent]) await ethers.provider.send("hardhat_setBalance", [w.address, "0x56BC75E2D63100000"]);
+    const payUsdc = await (await ethers.getContractFactory("MockUSDC")).deploy();
+    const payAddr = await payUsdc.getAddress();
+    await payUsdc.mint(operator.address, usd(5));
+    await payUsdc.mint(agent.address, usd(1));
+    const vault = await (await ethers.getContractFactory("SuretyVault", operator)).deploy(
+      payAddr, operator.address, operator.address, operator.address, usd(0.5), 7 * 86400, 500
+    );
+    const { chainId } = await ethers.provider.getNetwork();
+    const network = `eip155:${chainId}`;
+    const facilitator = await startFakeFacilitator({ usdc: payUsdc, network, wallets: { [agent.address.toLowerCase()]: agent } });
+    const lines = [];
+    const s = await startSurety({
+      wallet: operator, vaultAddress: await vault.getAddress(), usdcAddress: payAddr, network,
+      facilitatorUrl: `http://127.0.0.1:${facilitator.address().port}`,
+      reader: createPriceReader({
+        provider: ethers.provider, cacheMs: 0, factories: [{ dex: "mock-v3", address: await factory.getAddress() }],
+        wmon: await wmon.getAddress(), usdc: await dataUsdc.getAddress(),
+      }),
+      host: "127.0.0.1", allowInsecure: true, log: (m) => lines.push(m),
+      dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "surety-start-")),
+    });
+    try {
+      expect((await vault.providers(operator.address)).metadataURI).to.equal(`${s.url}/.well-known/surety.json`);
+      expect(lines.join("\n")).to.contain("NOT ACTIVE"); // no bond yet
+      expect((await (await fetch(`${s.url}/health`)).json()).ok).to.equal(true);
+      expect((await (await fetch(`${s.url}/`)).json()).name).to.equal("Surety Market Data API");
+
+      await payUsdc.connect(operator).approve(await vault.getAddress(), ethers.MaxUint256);
+      await vault.connect(operator).depositBond(usd(1));
+      const client = createSuretyClient({ relayUrl: s.url, fetch: createPayingFetch(agent.privateKey, network, payAddr).fetch });
+      const before = await payUsdc.balanceOf(agent.address);
+      const r = await client.call(s.provider, "/v1/price/mon");
+      expect(r.verdict).to.equal("pass");
+      expect((await r.response.json()).priceUsd).to.be.closeTo(0.0117, 1e-7);
+      expect(before - (await payUsdc.balanceOf(agent.address))).to.equal(usd(0.001));
+      expect(await payUsdc.balanceOf(s.payTo)).to.equal(usd(0.001)); // paid to a different address than the agent
+      expect((await client.trust(s.provider)).active).to.equal(true);
+    } finally {
+      await s.close();
+      await new Promise((r) => facilitator.close(r));
+    }
+  });
+});

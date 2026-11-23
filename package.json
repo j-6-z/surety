@@ -11,7 +11,8 @@
     "check:testnet": "node scripts/testnet-check.js",
     "relay": "node verifier/server.js",
     "api": "node api/server.js",
-    "check:api": "node scripts/api-check.js"
+    "check:api": "node scripts/api-check.js",
+    "start": "node start.js"
   },
   "keywords": [
     "x402",

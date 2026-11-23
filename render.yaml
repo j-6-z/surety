@@ -1,0 +1,15 @@
+# Render blueprint: one always-on web service running the relay and the Market Data API.
+services:
+  - type: web
+    name: surety
+    runtime: node
+    buildCommand: npm ci --omit=dev
+    startCommand: node start.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: VAULT_ADDRESS
+        sync: false
+      - key: PRIVATE_KEY # testnet wallet only. Set in the dashboard, never in this file.
+        sync: false

@@ -28,7 +28,7 @@ Needs Node 18 or newer. Everything runs on a local chain, with no wallet or netw
 
 ```bash
 npm install
-npm test          # 55 tests
+npm test          # 56 tests
 npm run demo      # one healthy call, two refunded ones
 ```
 
@@ -112,6 +112,20 @@ It refuses to quote from a pool holding under 1,000 USDC (`MIN_POOL_USDC`), and 
 `npm run check:api` runs it locally with real Monad mainnet prices, bonds it on your testnet vault and buys two calls through the relay. `npm run api` starts it by itself; set `PAY_TO_ADDRESS` in `.env`.
 
 Limits: it reads Uniswap V3 pools only, so liquidity that sits on other venues is not seen, and a spot pool price can be moved by a large trade. It is a demo provider, not a price oracle.
+
+## Hosting it
+
+`npm start` runs the relay and the Market Data API together on one port. On boot it points your on-chain provider record at the server's public address.
+
+`render.yaml` is a ready blueprint for Render: build `npm ci --omit=dev`, start `node start.js`. Set two environment variables in the host's dashboard, never in a file: `VAULT_ADDRESS` and `PRIVATE_KEY` (a testnet-only wallet that is the vault's arbiter and the provider). The public address is picked up from the host, or set `PUBLIC_URL` yourself.
+
+Use an always-on plan. A host that sleeps when idle answers its first call slowly, and a slow paid call is refunded from your bond. Evidence files and call history are kept on local disk, so they reset on redeploy unless you attach a persistent disk and set `DATA_DIR`.
+
+Once it is up, anyone can try it with their own wallet and a little testnet USDC:
+
+```bash
+AGENT_KEY=0x... node examples/call-api.js https://<your-host> <providerAddress>
+```
 
 ## Known limits
 
