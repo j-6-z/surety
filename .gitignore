@@ -1,0 +1,20 @@
+# secrets: never commit these
+.env
+.env.*
+!.env.example
+
+# dependencies and build output
+node_modules
+artifacts
+cache
+coverage
+typechain-types
+
+# relay runtime data (evidence files, call log)
+data
+
+# OS and editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode
