@@ -15,7 +15,23 @@ if (!/^https:\/\//.test(url) || !PRIVATE_KEY || !VAULT_ADDRESS) {
   process.exit(1);
 }
 
+/// www or no www? Whichever one answers without redirecting is the real address. Follow to it.
+async function realAddress(start) {
+  let at = start;
+  for (let hop = 0; hop < 4; hop++) {
+    const res = await fetch(at + "/health", { redirect: "manual" }).catch(() => null);
+    const to = res && res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+    if (!to) return at;
+    at = new URL(to, at).origin;
+  }
+  return at;
+}
+
 (async () => {
+  const asked = url;
+  url = await realAddress(url);
+  if (url !== asked) console.log(`${asked} redirects to ${url}, so that is the real address. Using it.`);
+  console.log(`\nPUBLIC_URL on the host must be exactly:  ${url}\n`);
   for (const [name, path] of [["health", "/health"], ["SLA", "/.well-known/surety.json"]]) {
     const res = await fetch(url + path, { redirect: "manual" }).catch((e) => {
       const code = e.cause?.code || e.cause?.message || e.message;
@@ -31,7 +47,7 @@ if (!/^https:\/\//.test(url) || !PRIVATE_KEY || !VAULT_ADDRESS) {
     if (!res.ok) throw new Error(`${name} check failed: ${url + path} answered ${res.status} ${(await res.text()).slice(0, 200)}`);
     if (name === "SLA") {
       const sla = await res.json();
-      if (sla.baseUrl !== url) throw new Error(`The server thinks its address is ${sla.baseUrl}, not ${url}. Set PUBLIC_URL to ${url} on the host and redeploy.`);
+      if (sla.baseUrl !== url) throw new Error(`PUBLIC_URL is wrong on the host. It is currently "${sla.baseUrl}". Change it to exactly "${url}" in the host's settings, redeploy, wait for it to finish, and run this again.`);
     }
     console.log(`  ${name} check passed`);
   }
