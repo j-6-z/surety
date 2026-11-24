@@ -19,6 +19,7 @@ const QUOTE_SCHEMA = {
  * @param {string} o.payTo           wallet that receives payments
  * @param {string} o.facilitatorUrl
  * @param {string} [o.price]         e.g. "$0.001"
+ * @param {{name: string, version: string}} [o.tokenDomain]  the token's EIP-712 name and version, as the token itself reports them
  * @param {number} [o.slowMs]        how long /slow sleeps
  * @param {number} [o.slowMaxMs]     latency /slow promises in its SLA
  * @param {number} [o.okMaxMs]       latency the other endpoints promise
@@ -33,7 +34,7 @@ function createX402Provider(o) {
   const scheme = new ExactEvmScheme();
   scheme.registerMoneyParser(async (amount, network) =>
     network === o.network
-      ? { amount: Math.floor(amount * 1_000_000).toString(), asset: o.usdc, extra: { name: "USDC", version: "2" } }
+      ? { amount: Math.floor(amount * 1_000_000).toString(), asset: o.usdc, extra: o.tokenDomain || { name: "USDC", version: "2" } }
       : null
   );
   const server = new x402ResourceServer(new HTTPFacilitatorClient({ url: o.facilitatorUrl })).register(o.network, scheme);

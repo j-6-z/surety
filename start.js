@@ -17,6 +17,7 @@ const { createCronPublish } = require("./site/cron");
 const { directoryPage, notFoundPage } = require("./site/directory");
 const { bondPage } = require("./site/bond-page");
 const { createBondApi } = require("./site/bond-api");
+const { networkFromEnv } = require("./networks");
 
 // Written by scripts/generate.js. Missing on a fresh checkout that hasn't been built yet.
 let schedule = { scheduled: [] };
@@ -46,25 +47,29 @@ function derivePayTo(privateKey) {
  */
 function buildSuretyApp(c) {
   const payTo = c.payTo || derivePayTo(c.wallet.privateKey);
+  // Three roles that one test wallet can play, and that mainnet keeps apart:
+  // the relay's signer (c.wallet), the provider being sold, and whoever pays for the homepage demo.
+  const providerAddress = c.providerAddress || c.wallet.address;
+  const demoWallet = c.demo === false ? null : c.demoWallet === undefined ? c.wallet : c.demoWallet;
   const api = createMarketApi({
-    reader: c.reader, network: c.network, usdc: c.usdcAddress, payTo,
+    reader: c.reader, network: c.network, usdc: c.usdcAddress, payTo, tokenDomain: c.tokenDomain,
     facilitatorUrl: c.facilitatorUrl, price: c.price, publicUrl: c.publicUrl,
-    landing: { provider: c.wallet.address, vaultAddress: c.vaultAddress, ...(c.repoUrl ? { repoUrl: c.repoUrl } : {}) },
-    demo: c.demo === false ? undefined : { ...c.demo },
+    landing: { provider: providerAddress, vaultAddress: c.vaultAddress, ...(c.repoUrl ? { repoUrl: c.repoUrl } : {}) },
+    demo: demoWallet ? { ...c.demo } : undefined,
   });
   const relay = createRelay({
     vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, signer: c.wallet,
     dataDir: c.dataDir, allowInsecure: c.allowInsecure,
-    skipStats: (addr, p) => addr === c.wallet.address && p === "/v1/demo/slow",
+    skipStats: (addr, p) => addr === providerAddress && p === "/v1/demo/slow",
   });
   const app = express();
   app.disable("x-powered-by");
   app.use((req, res, next) =>
     req.url.startsWith("/call/") || req.url.startsWith("/trust/") ? relay.handle(req, res) : next()
   );
-  if (c.demo !== false) {
+  if (demoWallet) {
     const demo = createDemo({
-      wallet: c.wallet, vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, network: c.network,
+      wallet: demoWallet, providerAddress, vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, network: c.network,
       publicUrl: c.publicUrl, explorer: c.explorer, ...c.demo,
     });
     app.post("/demo/run", demo.handleRun);
@@ -78,7 +83,7 @@ function buildSuretyApp(c) {
   let directory = { at: 0, body: null };
   async function listProviders() {
     if (directory.body && Date.now() - directory.at < 15_000) return directory.body;
-    const addrs = [...new Set([c.wallet.address, ...(c.directory || []), ...announced, ...relay.known()].map((a) => ethers.getAddress(a)))];
+    const addrs = [...new Set([providerAddress, ...(c.directory || []), ...announced, ...relay.known()].map((a) => ethers.getAddress(a)))];
     const providers = (
       await Promise.all(
         addrs.map(async (addr) => {
@@ -176,23 +181,48 @@ async function startSurety(c) {
   const built = buildSuretyApp({ ...c, publicUrl: url });
   onRequest = built.app;
   log(`Surety running at ${url}`);
-  await pointProviderAt(c.wallet, c.vaultAddress, built.slaUrl, log);
-  log(`  agents call:  ${url}/call/${c.wallet.address}/v1/price/mon`);
-  return { url, provider: c.wallet.address, payTo: built.payTo, close: () => new Promise((r) => server.close(r)) };
+  const provider = c.providerAddress || c.wallet.address;
+  // The listing can only be updated by the provider's own wallet. When that key is kept off this
+  // server (as on mainnet), update it from your own machine with scripts/set-host.js.
+  if (provider === c.wallet.address) await pointProviderAt(c.wallet, c.vaultAddress, built.slaUrl, log);
+  else log(`  provider ${provider} is a separate wallet: point its listing here with scripts/set-host.js`);
+  log(`  agents call:  ${url}/call/${provider}/v1/price/mon`);
+  return { url, provider, payTo: built.payTo, close: () => new Promise((r) => server.close(r)) };
 }
 
 /// Reads the standard settings from environment variables.
+///
+/// On testnet one PRIVATE_KEY can play every part. On mainnet (SURETY_NETWORK=mainnet)
+/// the parts are separate settings, and the vault owner's key is never one of them:
+///   ARBITER_KEY        the relay's signer. The only key the server must hold.
+///   PROVIDER_ADDRESS   the wallet the Market Data API is listed and bonded under (address only).
+///   PAY_TO_ADDRESS     where API payments land (address only).
+///   DEMO_KEY           optional: a small wallet that pays for homepage demo calls. No key, no demo.
 function configFromEnv(env = process.env) {
-  if (!env.PRIVATE_KEY || !env.VAULT_ADDRESS) throw new Error("Set PRIVATE_KEY and VAULT_ADDRESS.");
-  const key = env.PRIVATE_KEY.startsWith("0x") ? env.PRIVATE_KEY : `0x${env.PRIVATE_KEY}`;
+  const net = networkFromEnv(env);
+  const arbiterKey = env.ARBITER_KEY || env.PRIVATE_KEY;
+  if (!arbiterKey || !env.VAULT_ADDRESS) throw new Error("Set VAULT_ADDRESS and ARBITER_KEY (or PRIVATE_KEY on testnet).");
+  const hex = (k) => (k.startsWith("0x") ? k : `0x${k}`);
+  const rpc = new ethers.JsonRpcProvider(net.rpc);
+  const wallet = new ethers.Wallet(hex(arbiterKey), rpc);
+  if (net.real) {
+    const missing = ["PROVIDER_ADDRESS", "PAY_TO_ADDRESS"].filter((k) => !ethers.isAddress(env[k] || ""));
+    if (missing.length) throw new Error(`On mainnet, set ${missing.join(" and ")} (addresses, not keys).`);
+    if (!env.ARBITER_KEY) throw new Error("On mainnet, name the relay's key ARBITER_KEY, so it is never confused with an owner key.");
+  }
   const host = env.VERCEL_PROJECT_PRODUCTION_URL || env.VERCEL_URL || env.RAILWAY_PUBLIC_DOMAIN;
   const publicUrl = (env.PUBLIC_URL || env.RENDER_EXTERNAL_URL || (host && `https://${host}`) || "").replace(/\/+$/, "") || undefined;
   return {
-    wallet: new ethers.Wallet(key, new ethers.JsonRpcProvider(env.MONAD_TESTNET_RPC || "https://testnet-rpc.monad.xyz")),
+    wallet,
+    providerAddress: env.PROVIDER_ADDRESS ? ethers.getAddress(env.PROVIDER_ADDRESS) : wallet.address,
+    // Testnet: the one wallet pays for demos too. Mainnet: only a wallet set aside for it.
+    demoWallet: env.DEMO_KEY ? new ethers.Wallet(hex(env.DEMO_KEY), rpc) : net.real ? null : wallet,
     vaultAddress: env.VAULT_ADDRESS,
-    usdcAddress: env.USDC_ADDRESS || "0x534b2f3A21130d7a60830c2Df862319e593943A3",
-    network: env.X402_NETWORK || "eip155:10143",
-    facilitatorUrl: env.FACILITATOR_URL || "https://x402-facilitator.molandak.org",
+    usdcAddress: net.usdc,
+    network: env.X402_NETWORK || net.caip,
+    facilitatorUrl: net.facilitatorUrl,
+    explorer: net.explorer,
+    tokenDomain: env.USDC_DOMAIN_NAME ? { name: env.USDC_DOMAIN_NAME, version: env.USDC_DOMAIN_VERSION || "2" } : undefined,
     reader: createPriceReader({
       provider: new ethers.JsonRpcProvider(env.DATA_RPC || MONAD_MAINNET.rpc),
       factories: MONAD_MAINNET.factories, wmon: MONAD_MAINNET.wmon, usdc: MONAD_MAINNET.usdc,

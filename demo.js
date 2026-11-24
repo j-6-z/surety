@@ -20,7 +20,8 @@ const PATHS = { good: "/v1/price/mon", slow: "/v1/demo/slow" };
 
 /**
  * @param {object} c
- * @param {import("ethers").Wallet} c.wallet  pays for demo calls; also the provider being called
+ * @param {import("ethers").Wallet} c.wallet  pays for demo calls
+ * @param {string} [c.providerAddress]       the provider being called (default: the same wallet)
  * @param {string} c.vaultAddress @param {string} c.usdcAddress @param {string} c.network
  * @param {string} c.publicUrl               where the relay is reachable
  * @param {string} [c.explorer]              block explorer base for transaction links
@@ -29,7 +30,7 @@ const PATHS = { good: "/v1/price/mon", slow: "/v1/demo/slow" };
  * @param {bigint} [c.bondMargin]            keep at least this much bond above the minimum
  */
 function createDemo(c) {
-  const provider = c.wallet.address;
+  const provider = c.providerAddress || c.wallet.address; // the provider being called; the wallet only pays
   const client = createSuretyClient({
     relayUrl: c.publicUrl,
     fetch: createPayingFetch(c.wallet.privateKey, c.network, c.usdcAddress).fetch,

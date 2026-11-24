@@ -416,7 +416,7 @@ describe("homepage", () => {
       const html = await fetch(base, { headers: { accept: "text/html,application/xhtml+xml,*/*;q=0.8" } });
       expect(html.headers.get("content-type")).to.contain("text/html");
       const page = await html.text();
-      expect(page).to.contain("Your agent shouldn't pay for garbage.");
+      expect(page).to.contain("Refunds for AI agents when a paid API fails.");
       expect(page).to.contain(wallet.address).and.to.contain(vaultAddress);
       expect(page).to.contain(`/trust/${wallet.address}`);
       expect(page).to.not.contain("undefined");

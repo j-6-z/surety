@@ -11,6 +11,11 @@ contract MockUSDC is ERC20 {
         return 6;
     }
 
+    /// @dev Real USDC reports its signing version; x402 clients need it.
+    function version() external pure returns (string memory) {
+        return "2";
+    }
+
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }

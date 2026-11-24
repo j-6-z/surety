@@ -62,7 +62,11 @@ header.site.stuck::before{box-shadow:0 10px 30px -22px rgba(27,18,66,.45)}
 .util p{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
 .util .net{display:inline-flex;align-items:center;gap:8px;color:#fff;font-weight:500}
 .util .net::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pass-soft);animation:beat 2.6s ease-in-out infinite}
-.util .note{color:#B9AFE6}
+.util .stats{display:inline-flex;flex-wrap:wrap;gap:2px 0;color:#B9AFE6}
+.util .stats[hidden]{display:none}
+.util .stats span{padding:0 14px;border-left:1px solid var(--night-line)}
+.util .stats b{color:#fff;font-weight:500}
+.util a.mono{font-size:13px}
 .util ul{display:flex;gap:4px 22px;list-style:none;margin:0;padding:0}
 .util a{color:#fff;text-decoration:none;padding:3px 0;display:inline-block}
 @keyframes beat{50%{opacity:.5}}
@@ -104,7 +108,7 @@ nav.site .menu-btn .bars::after{content:"";position:absolute;left:0;right:0;top:
 @keyframes unfold{from{opacity:0;transform:translateY(-6px)}}
 @media (min-width:981px) and (max-width:1240px){nav.site .brand small{display:none}}
 @media (max-width:980px){
-  .util .note,.util ul li.opt{display:none}
+  .util .stats span:nth-child(n+2),.util ul li.opt{display:none}
   nav.site .brand small{display:none}
   .js nav.site .menu-btn{display:inline-flex}
   .js nav.site .menus{display:none;width:100%;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:6px 18px 18px;margin-top:4px;box-shadow:var(--lift);max-height:calc(100vh - 150px);overflow-y:auto}
@@ -120,7 +124,7 @@ nav.site .menu-btn .bars::after{content:"";position:absolute;left:0;right:0;top:
   .js nav.site .acts{margin:16px 0 0;flex-direction:column}
   .js nav.site .acts a{min-height:52px;font-size:18px}
 }
-@media (max-width:520px){.util{font-size:13.5px}nav.site{padding:10px 0}}
+@media (max-width:520px){.util{font-size:13.5px}.util .stats{display:none}nav.site{padding:10px 0}}
 @media (prefers-reduced-motion:reduce){.util .net::before,.js nav.site .m.open .drop,.js nav.site.open .menus{animation:none}nav.site .m>button::after,header.site::before{transition:none}}
 
 footer.site{position:relative;margin-top:104px;color:#D9D2F7;padding:68px 0 30px;font-size:16.5px}
@@ -223,9 +227,9 @@ footer.site .legal a{color:#D9D2F7;padding:4px 0;display:inline-block}
 <script>document.documentElement.className+=" js"</script>
 <header class="site">
   <div class="util">
-    <p><span class="net">Live on Monad testnet</span><span class="note">Experimental and unaudited. Test funds only.</span></p>
+    <p><span class="net">Monad testnet</span><span class="stats" id="util-stats" hidden><span><b id="us-p"></b> bonded</span><span><b id="us-b"></b> USDC in bonds</span><span><b id="us-r"></b> paid out</span></span></p>
     <ul>
-      <li class="opt"><a href="https://testnet.monadvision.com/address/0xf3F9e32De47a143149F7398f25f264b98a01273C" rel="noopener">Vault contract</a></li>
+      <li class="opt"><a class="mono" href="https://testnet.monadvision.com/address/0xf3F9e32De47a143149F7398f25f264b98a01273C" rel="noopener" title="Vault contract">Vault 0xf3F9…273C</a></li>
       <li><a href="https://github.com/j-6-z/surety">GitHub</a></li>
       <li><a href="/faq/">FAQ</a></li>
     </ul>
@@ -252,6 +256,10 @@ n.addEventListener("click",function(e){if(e.target.closest("a")){shut();all(fals
 document.addEventListener("click",function(e){if(!n.contains(e.target)){shut();all(false)}});
 document.addEventListener("keydown",function(e){if(e.key==="Escape"){shut();all(false)}});
 function s(){h.classList.toggle("stuck",window.scrollY>8)}s();window.addEventListener("scroll",s,{passive:true});
+function show(d){var p=d.providers||[],a=0,b=0,r=0;p.forEach(function(x){if(x.active)a++;b+=Number(x.bond||0);r+=Number(x.claimCount||0)});if(!p.length)return;
+document.getElementById("us-p").textContent=a+(a===1?" provider":" providers");document.getElementById("us-b").textContent=(b/1e6).toFixed(2);document.getElementById("us-r").textContent=r+(r===1?" refund":" refunds");document.getElementById("util-stats").hidden=false}
+var k="surety-stats",c=null;try{c=JSON.parse(sessionStorage.getItem(k))}catch(e){}
+if(c&&Date.now()-c.at<60000)show(c.d);else fetch("/providers.json").then(function(x){return x.ok?x.json():null}).then(function(d){if(!d)return;show(d);try{sessionStorage.setItem(k,JSON.stringify({at:Date.now(),d:d}))}catch(e){}}).catch(function(){});
 })();</script>
 <main>
 <article class="post">

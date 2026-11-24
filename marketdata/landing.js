@@ -105,6 +105,46 @@ ul.plain span{color:#443E62;font-size:16.5px}
   ol.trace li,ol.trace li:nth-child(even){border-right:0;padding-left:0}
 }
 @media (prefers-reduced-motion:reduce){.trace li.live .pip{animation:none}}
+
+/* ---- Hero: what Surety does on the left, the working demo on the right. ---- */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.04fr);gap:52px;align-items:start;padding:52px 0 0}
+.hero h1{font-size:clamp(36px,4.3vw,56px);line-height:1.04;letter-spacing:-.035em;margin:0 0 18px}
+.hero .lede{font-size:20px;line-height:1.5;max-width:none;margin:0 0 30px}
+ol.how{list-style:none;margin:0 0 30px;padding:0;counter-reset:how}
+ol.how li{counter-increment:how;position:relative;padding:0 0 22px 54px}
+ol.how li:last-child{padding-bottom:0}
+ol.how li::before{content:counter(how);position:absolute;left:0;top:-2px;width:36px;height:36px;border-radius:50%;background:var(--panel);border:1.5px solid var(--purple);color:var(--purple-deep);font-weight:700;font-size:17px;display:flex;align-items:center;justify-content:center}
+ol.how li::after{content:"";position:absolute;left:17.5px;top:38px;bottom:2px;width:1.5px;background:#D5CCF7}
+ol.how li:last-child::after{display:none}
+ol.how b{display:block;font-size:20px;letter-spacing:-.01em}
+ol.how span{display:block;color:#443E62;font-size:16.5px;line-height:1.45;margin-top:2px}
+.hero-acts{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;margin:0}
+.hero-acts .text{font-weight:500;font-size:17px}
+.hero .console{margin:0;padding:28px 28px 24px}
+.hero .console h2{font-size:28px}
+.hero .console .hint{font-size:16px;margin-bottom:18px}
+.hero .runs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.hero .run{padding:13px 16px;font-size:17px}
+.hero .run small{font-size:13.5px}
+.hero ol.trace{display:block;border-top:1px solid var(--night-line)}
+.hero ol.trace li,.hero ol.trace li:nth-child(n){display:grid;grid-template-columns:150px minmax(0,1fr);gap:2px 14px;align-items:baseline;min-height:0;padding:13px 0;border-right:0;border-bottom:1px solid var(--night-line)}
+.hero .trace .n{grid-row:1/3;align-self:start;padding-top:3px}
+.hero .trace .v{font-size:20px;margin:0;min-height:24px}
+.hero .trace .d{font-size:14.5px}
+.hero .verdict{margin-top:16px;font-size:16px;min-height:50px}
+.hero .fine{font-size:13.5px}
+main>.facts{margin-top:28px}
+@media (max-width:980px){
+  .hero{grid-template-columns:1fr;gap:36px;padding-top:34px}
+}
+@media (max-width:520px){
+  .hero h1{font-size:34px}
+  .hero .lede{font-size:18.5px}
+  .hero .console{padding:22px 18px 20px}
+  .hero .runs{grid-template-columns:1fr}
+  .hero ol.trace li,.hero ol.trace li:nth-child(n){grid-template-columns:128px minmax(0,1fr)}
+  ol.how b{font-size:19px}
+}
 `;
 
 function landingPage({ url, provider, vaultAddress, repoUrl, price }) {
@@ -135,26 +175,34 @@ ${head({
 ${nav({ current: "home", repoUrl })}
 
 <main>
-<div class="intro">
-  <h1>Your agent shouldn't pay for garbage.</h1>
-  <p class="lede">API providers post a bond. When a paid x402 call comes back slow or broken, the agent gets its money back on-chain. Run one below and watch.</p>
-</div>
-
-<div class="console" id="demo">
-  <h2>Run a real paid call</h2>
-  <p class="hint">Each button pays ${esc(price)} to a live API on Monad testnet, through Surety. The slow one is built to miss its promise, so the bond refunds it.</p>
-  <div class="runs">
-    <button class="run good" type="button" data-kind="good">Run a good call<small>Buys the live MON price</small></button>
-    <button class="run slow" type="button" data-kind="slow">Run a slow call<small>Triggers a refund from the bond</small></button>
+<div class="hero">
+  <div class="pitch">
+    <h1>Refunds for AI agents when a paid API fails.</h1>
+    <p class="lede">API providers lock up a bond. Surety checks every paid call against what the provider promised. A slow or broken answer is refunded from that bond, on-chain, with nobody filing a claim.</p>
+    <ol class="how">
+      <li><b>A provider posts a bond</b><span>USDC locked in a contract on Monad, behind a written promise: how fast it answers, and in what shape.</span></li>
+      <li><b>An agent pays per call</b><span>Over x402, through the Surety relay, which times and checks every answer.</span></li>
+      <li><b>A failed call is refunded</b><span>Straight from the bond to the agent's wallet.</span></li>
+    </ol>
+    <p class="hero-acts"><a class="go" href="/bond/">Bond your API</a><a class="text" href="/how-it-works/">How it works</a></p>
   </div>
-  <ol class="trace" aria-live="polite">
-    <li id="t-pay"><div class="n"><span class="pip"></span>Agent pays</div><div class="v">${esc(price)}</div><div class="d">Paid over x402, in test USDC.</div></li>
-    <li id="t-answer"><div class="n"><span class="pip"></span>Provider answers</div><div class="v">&nbsp;</div><div class="d">Timed from request to full response.</div></li>
-    <li id="t-check"><div class="n"><span class="pip"></span>Surety checks</div><div class="v">&nbsp;</div><div class="d">Status, speed and shape against the promise.</div></li>
-    <li id="t-outcome" class="outcome"><div class="n"><span class="pip"></span>Outcome</div><div class="v">&nbsp;</div><div class="d">Pass, or a refund from the bond.</div></li>
-  </ol>
-  <p class="verdict" id="verdict" role="status">Nothing run yet in this visit. Pick a call.</p>
-  <p class="fine">Demo calls are paid by Surety's own test wallet, so you don't need one. Fresh runs are spaced out; a repeat click may show the run from a moment ago.</p>
+
+  <div class="console" id="demo">
+    <h2>See it happen</h2>
+    <p class="hint">Each button makes a real ${esc(price)} payment to a live API on Monad testnet. No wallet needed.</p>
+    <div class="runs">
+      <button class="run good" type="button" data-kind="good">Run a good call<small>Buys the live MON price</small></button>
+      <button class="run slow" type="button" data-kind="slow">Run a slow call<small>Triggers a refund from the bond</small></button>
+    </div>
+    <ol class="trace" aria-live="polite">
+      <li id="t-pay"><div class="n"><span class="pip"></span>Agent pays</div><div class="v">${esc(price)}</div><div class="d">Paid over x402, in test USDC.</div></li>
+      <li id="t-answer"><div class="n"><span class="pip"></span>Provider answers</div><div class="v">&nbsp;</div><div class="d">Timed from request to full response.</div></li>
+      <li id="t-check"><div class="n"><span class="pip"></span>Surety checks</div><div class="v">&nbsp;</div><div class="d">Status, speed and shape against the promise.</div></li>
+      <li id="t-outcome" class="outcome"><div class="n"><span class="pip"></span>Outcome</div><div class="v">&nbsp;</div><div class="d">Pass, or a refund from the bond.</div></li>
+    </ol>
+    <p class="verdict" id="verdict" role="status">Nothing run yet in this visit. Pick a call.</p>
+    <p class="fine">Surety's own test wallet pays for demo calls. Fresh runs are spaced out, so a repeat click may show the run from a moment ago.</p>
+  </div>
 </div>
 
 <dl class="facts" aria-label="Live record of the first provider">

@@ -43,6 +43,7 @@ const POOL_SCHEMA = {
  * @param {string} o.payTo
  * @param {string} o.facilitatorUrl
  * @param {string} [o.price]          per call, e.g. "$0.001"
+ * @param {{name: string, version: string}} [o.tokenDomain]  the token's EIP-712 name and version (default: USDC, 2)
  * @param {number} [o.maxLatencyMs]   what the SLA promises (includes payment settlement time)
  * @param {string} [o.publicUrl]      where the API is reachable; defaults to the local address
  * @param {{slowMs?: number, promiseMs?: number}} [o.demo]
@@ -58,7 +59,7 @@ function createMarketApi(o) {
   const scheme = new ExactEvmScheme();
   scheme.registerMoneyParser(async (amount, network) =>
     network === o.network
-      ? { amount: Math.floor(amount * 1_000_000).toString(), asset: o.usdc, extra: { name: "USDC", version: "2" } }
+      ? { amount: Math.floor(amount * 1_000_000).toString(), asset: o.usdc, extra: o.tokenDomain || { name: "USDC", version: "2" } }
       : null
   );
   const x402 = new x402ResourceServer(new HTTPFacilitatorClient({ url: o.facilitatorUrl })).register(o.network, scheme);

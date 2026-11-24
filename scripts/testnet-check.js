@@ -50,6 +50,10 @@ const fmt = (v) => `${ethers.formatUnits(v, 6)} USDC`;
  *        the paid API to bond and call; defaults to the three-endpoint demo API
  * @param {Array<[string, "pass"|"fail"]>} [c.calls]  paths to call and the verdict each should get
  * @param {boolean} [c.showBody]  print each successful response
+ * @param {boolean} [c.ownerElsewhere]  the vault owner is a different wallet (as on mainnet): this wallet only
+ *        needs to be the arbiter, and the vault's settings are left exactly as they are
+ * @param {{name: string, version: string}} [c.tokenDomain]  passed to the paid API
+ * @param {string} [c.fundsHint]  what to tell the user when the wallet is short of USDC
  * @param {(msg: string) => void} [c.log]
  */
 async function main(c) {
@@ -63,8 +67,8 @@ async function main(c) {
     await tx.wait();
     log(`  done: ${label}`);
   };
-  const MIN_BOND = usd(0.5);
-  const BOND = usd(0.6);
+  const MIN_BOND = c.ownerElsewhere ? await vault.minProviderBond() : usd(0.5);
+  const BOND = MIN_BOND + usd(0.1); // room for the two refunds and their fees
 
   log(`Wallet ${me}`);
   log(`Vault  ${c.vaultAddress}`);
@@ -74,21 +78,24 @@ async function main(c) {
     wallet.provider.getBalance(me), usdc.balanceOf(me), vault.owner(), vault.arbiter(), vault.providers(me),
   ]);
   log(`Balance: ${ethers.formatEther(mon)} MON, ${fmt(usdcBal)}. Bond already posted: ${fmt(p0.bond)}`);
-  if (owner !== me || arbiter !== me) {
+  if (c.ownerElsewhere) {
+    if (arbiter !== me) throw new Error(`This wallet must be the vault's arbiter. The vault's arbiter is ${arbiter}.`);
+    if (owner === me) log("WARNING: this wallet is also the vault's owner. On mainnet the owner key should never sit on a server.");
+  } else if (owner !== me || arbiter !== me) {
     throw new Error(`This wallet must be the vault's owner and arbiter (owner ${owner}, arbiter ${arbiter}).`);
   }
   const bondNeeded = p0.bond >= BOND ? 0n : BOND - p0.bond;
   const usdcNeeded = bondNeeded + usd(0.01);
   if (usdcBal < usdcNeeded) {
     throw new Error(
-      `Not enough testnet USDC: have ${fmt(usdcBal)}, need ${fmt(usdcNeeded)}. ` +
-        `Get 1 USDC at https://faucet.circle.com (USDC -> Monad Testnet) for ${me}, then run this again.`
+      `Not enough USDC: have ${fmt(usdcBal)}, need ${fmt(usdcNeeded)}. ` +
+        (c.fundsHint || `Get 1 USDC at https://faucet.circle.com (USDC -> Monad Testnet) for ${me}, then run this again.`)
     );
   }
 
   // ---- 2. testnet-sized settings: the faucet only gives 1 USDC, so drop the minimum bond to 0.5
   log("\nSetting up...");
-  if ((await vault.minProviderBond()) !== MIN_BOND) {
+  if (!c.ownerElsewhere && (await vault.minProviderBond()) !== MIN_BOND) {
     await send("minimum bond set to 0.5 USDC", vault.setParams(MIN_BOND, await vault.unbondingDelay(), await vault.slashFeeBps()));
   }
 
@@ -97,7 +104,7 @@ async function main(c) {
   const api = c.createApi
     ? c.createApi({ payTo })
     : createX402Provider({
-        network: c.network, usdc: c.usdcAddress, payTo, facilitatorUrl: c.facilitatorUrl,
+        network: c.network, usdc: c.usdcAddress, payTo, facilitatorUrl: c.facilitatorUrl, tokenDomain: c.tokenDomain,
         price: "$0.001", slowMs: c.slowMs ?? 6000, slowMaxMs: c.slowMaxMs ?? 2000,
       });
   const calls = c.calls || [["/quote", "pass"], ["/slow", "fail"], ["/broken", "fail"]];
