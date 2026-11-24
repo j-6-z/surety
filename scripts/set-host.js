@@ -5,7 +5,8 @@ require("dotenv").config();
 const { ethers } = require("ethers");
 const { pointProviderAt } = require("../start");
 
-const url = (process.argv[2] || "").replace(/\/+$/, "");
+let url = (process.argv[2] || "").trim().replace(/\/+$/, "");
+if (url && !/^https?:\/\//.test(url)) url = `https://${url}`; // "my-app.vercel.app" is fine too
 const { PRIVATE_KEY, VAULT_ADDRESS } = process.env;
 if (!/^https:\/\//.test(url) || !PRIVATE_KEY || !VAULT_ADDRESS) {
   console.error("Usage: node scripts/set-host.js https://your-domain.example   (needs PRIVATE_KEY and VAULT_ADDRESS in .env)");

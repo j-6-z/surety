@@ -7,15 +7,18 @@
 const { createSuretyClient } = require("../sdk");
 const { createPayingFetch } = require("./x402-client");
 
+require("dotenv").config({ quiet: true });
 const [host, provider] = process.argv.slice(2);
-if (!host || !provider || !process.env.AGENT_KEY) {
+// Falls back to PRIVATE_KEY from .env, so the project owner can test without typing a key.
+const agentKey = process.env.AGENT_KEY || process.env.PRIVATE_KEY;
+if (!host || !provider || !agentKey) {
   console.error("Usage: AGENT_KEY=0x... node examples/call-api.js https://<surety-host> <providerAddress>");
   process.exit(1);
 }
 const USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3"; // Monad testnet USDC
 
 (async () => {
-  const agent = createPayingFetch(process.env.AGENT_KEY, "eip155:10143", USDC);
+  const agent = createPayingFetch(agentKey, "eip155:10143", USDC);
   const surety = createSuretyClient({ relayUrl: host, fetch: agent.fetch });
   console.log("Agent:", agent.address);
   console.log("Provider trust:", await surety.trust(provider));
