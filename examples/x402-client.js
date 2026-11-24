@@ -9,14 +9,15 @@ const { ExactEvmScheme } = require("@x402/evm/exact/client");
  * @param {string} network      CAIP-2 id, e.g. "eip155:10143"
  * @param {string} usdc         token the agent is allowed to pay in
  * @param {string} [maxAtomic]  most it may spend on one call, in token units (default 1 USDC)
+ * @param {typeof fetch} [baseFetch]  what actually sends requests, e.g. a Surety guard's fetch
  */
-function createPayingFetch(privateKey, network, usdc, maxAtomic = "1000000") {
+function createPayingFetch(privateKey, network, usdc, maxAtomic = "1000000", baseFetch = fetch) {
   const account = privateKeyToAccount(privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`);
   // The client only pays in tokens it has been told to trust, capped per call.
   const client = new x402Client()
     .register(network, new ExactEvmScheme(account))
     .setSpendControls({ allowedAssets: [{ network, asset: usdc, maxAmountPerPayment: maxAtomic }] });
-  return { fetch: wrapFetchWithPayment(fetch, client), address: account.address };
+  return { fetch: wrapFetchWithPayment(baseFetch, client), address: account.address };
 }
 
 module.exports = { createPayingFetch };

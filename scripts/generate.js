@@ -58,13 +58,11 @@ const ARTICLE_CSS = `
 .demo-cta{background:var(--night);color:#F3F0FF;border-radius:18px;padding:26px 28px;margin:48px 0 0;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;justify-content:space-between}
 .demo-cta p{margin:0;font-size:20px;font-weight:500;max-width:30ch;line-height:1.3}
 .demo-cta a{background:var(--purple);color:#fff;text-decoration:none;font-weight:500;padding:13px 20px;border-radius:11px}
-.demo-cta a:hover{background:#8169FF;color:#fff}
 .more{margin:52px 0 0}
 .more h2{font-size:20px;margin:0 0 6px}
 .list{list-style:none;margin:0;padding:0}
 .list li{padding:22px 0;border-bottom:1px solid var(--line)}
 .list a.t{font-size:25px;font-weight:700;letter-spacing:-.02em;line-height:1.2;text-decoration:none;color:var(--ink)}
-.list a.t:hover{color:var(--purple-deep)}
 .list p{margin:6px 0 4px;color:#443E62;max-width:64ch}
 .list small{color:var(--muted);font-size:15px}
 .index{max-width:820px;padding:34px 0 0}

@@ -29,7 +29,6 @@ const CSS = `
 .note h2{font-size:22px;margin:0 0 6px;letter-spacing:-.01em}
 .note p{margin:0 0 12px;color:#443E62;max-width:60ch}
 .note a.go{display:inline-block;background:var(--purple);color:#fff;text-decoration:none;font-weight:500;padding:12px 18px;border-radius:11px}
-.note a.go:hover{background:var(--purple-deep)}
 .state{padding:26px;text-align:center;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:18px}
 @media (max-width:700px){.stats{grid-template-columns:1fr 1fr}.prov{padding:18px}.prov h2{font-size:22px}}
 `;

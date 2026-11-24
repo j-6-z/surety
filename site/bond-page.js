@@ -24,9 +24,7 @@ input[type=text],input[type=url]{font:inherit;font-size:17px;padding:12px 14px;b
 input:focus{outline:3px solid var(--purple);outline-offset:1px;border-color:var(--purple)}
 label{display:block;font-size:15.5px;font-weight:500;margin:0 0 6px}
 button.act{font:inherit;font-size:17px;font-weight:500;padding:0 20px;min-height:48px;border-radius:11px;border:0;background:var(--purple);color:#fff;cursor:pointer}
-button.act:hover{background:var(--purple-deep)}
 button.act.quiet{background:transparent;color:var(--ink);border:1.5px solid #CFC8EA}
-button.act.quiet:hover{border-color:var(--purple)}
 button.act[disabled]{opacity:.5;cursor:not-allowed}
 .msg{margin:14px 0 0;padding:12px 14px;border-radius:11px;font-size:16.5px;background:#EEEAFB}
 .msg.ok{background:#DDF6EA;color:#0A5237}

@@ -5,7 +5,7 @@ nav: docs
 order: 2
 ---
 
-Everything here is live on Monad testnet (chain ID 10143) and uses test USDC. For a guided setup, read [how to bond your API](/articles/bond-your-x402-api/).
+Everything here is live on Monad testnet (chain ID 10143) and uses test USDC. To launch your own bonded API, start with the [provider kit](/kit/). For the manual route, read [how to bond your API](/articles/bond-your-x402-api/).
 
 ## For agents
 
@@ -62,6 +62,40 @@ const surety = createSuretyClient({ relayUrl: "https://www.surety.buzz", fetch: 
 const record = await surety.trust(provider);
 const { response, verdict, claim } = await surety.call(provider, "/v1/price/mon");
 ```
+
+### Spending limits
+
+A guard sits underneath your x402 client and reads every payment it has signed before the request leaves your process. A payment that breaks a rule is never sent.
+
+```js
+const { createSuretyClient, createGuard } = require("./sdk");
+const { wrapFetchWithPayment } = require("@x402/fetch");
+
+const guard = createGuard({
+  relayUrl: "https://www.surety.buzz",
+  maxPerCall: "0.01",      // USDC
+  dailyBudget: "1",        // USDC per UTC day, after refunds
+  minTrustScore: 30,
+  logFile: "./spend-log.jsonl",
+});
+const payingFetch = wrapFetchWithPayment(guard.fetch, yourX402Client);
+const surety = createSuretyClient({ relayUrl: "https://www.surety.buzz", fetch: payingFetch });
+```
+
+| Setting | What it does |
+| --- | --- |
+| `maxPerCall` | Refuses any single call that costs more than this |
+| `dailyBudget` | Refuses calls once the day's spending reaches this. A refunded call does not count |
+| `providers` | If set, only these provider addresses can be paid |
+| `bondedOnly` | Only pays providers whose calls are covered right now. On by default |
+| `minTrustScore` | Only pays providers at or above this score |
+| `logFile` | Keeps a line per payment and per blocked attempt, and makes the budget survive a restart |
+
+A blocked call throws a `SuretyGuardError` with a `code`: `over_call_cap`, `over_daily_budget`, `provider_not_allowed`, `provider_not_bonded`, `trust_too_low`, `not_through_surety`, `wrong_token`, `unreadable_payment` or `trust_unavailable`. Read `guard.spentToday()`, `guard.remainingToday()` and `guard.log()` at any time.
+
+The guard also refuses to pay a provider directly, around the relay, because that call could not be refunded.
+
+**What it does not do.** The guard runs inside your agent's own process. It stops bugs, bad prompts and runaway loops. It does not stop someone who has the agent's key, because they can sign payments without it. Keep only small amounts in an agent wallet.
 
 ## For providers
 

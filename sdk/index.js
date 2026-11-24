@@ -7,6 +7,10 @@
 // Pass your x402-enabled fetch (for example one wrapped by @x402/fetch) as `fetch`
 // and payments keep working exactly as before: the relay forwards the 402
 // handshake and the payment headers untouched.
+//
+// To cap what the agent can spend, put a guard under the payer (see guard.js):
+//   const guard = createGuard({ relayUrl, maxPerCall: "0.01", dailyBudget: "1" });
+//   const payingFetch = wrapFetchWithPayment(guard.fetch, x402client);
 
 /**
  * @param {object} o
@@ -44,4 +48,6 @@ function createSuretyClient({ relayUrl, fetch: f = globalThis.fetch }) {
   return { call, trust };
 }
 
-module.exports = { createSuretyClient };
+const { createGuard, SuretyGuardError } = require("./guard");
+
+module.exports = { createSuretyClient, createGuard, SuretyGuardError };

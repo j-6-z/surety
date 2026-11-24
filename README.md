@@ -71,6 +71,20 @@ npm run demo      # one healthy call, two refunded ones
 | `scripts/` | Deploy, local demo, testnet and API checks, host registration, gas and latency measurements |
 | `test/` | Contract tests, a randomised invariant test, and end-to-end tests through the relay |
 
+## For providers: the kit
+
+The fastest way to become a bonded provider is the starter in [`kit/`](kit/): one file for your endpoints, one command to post the bond. It stands alone, so you can copy the folder out.
+
+```
+npx degit j-6-z/surety/kit my-api
+cd my-api && npm install
+npm start                                   # run it locally
+npm run bond -- https://your-api.example    # list it and post the bond
+npm run try -- https://your-api.example/v1/block
+```
+
+Walkthrough: [surety.buzz/kit](https://www.surety.buzz/kit/).
+
 ## For providers: the SLA document
 
 Host this JSON at an https URL and pass that URL to `register()`:
@@ -96,6 +110,15 @@ const surety = createSuretyClient({ relayUrl, fetch: yourX402Fetch });
 const t = await surety.trust(provider);          // score, committed cover, pass rate
 const r = await surety.call(provider, "/quote"); // r.response, r.verdict, r.claim
 ```
+
+**Spending limits.** `createGuard` caps what an agent can spend: per call, per day, and by provider (allowlist, bonded only, minimum trust score). It sits under your x402 client and refuses to send a payment that breaks a rule. See [`sdk/guard.js`](sdk/guard.js) and `examples/guarded-agent.js`.
+
+```js
+const guard = createGuard({ relayUrl, maxPerCall: "0.01", dailyBudget: "1", minTrustScore: 30 });
+const payingFetch = wrapFetchWithPayment(guard.fetch, x402client);
+```
+
+It is a guardrail inside the agent's process, not a vault: it does not protect against a stolen key.
 
 **Trust score v0 (0 to 100).** 0 if the provider is inactive. Otherwise 60 points for pass rate over paid calls (counted as 50% until the relay has seen 20) plus 40 points for committed cover, meaning bond and backing not queued for exit, with full marks at 10x the minimum bond.
 

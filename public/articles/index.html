@@ -27,84 +27,157 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
-  --ground:#F5F3FC;--panel:#FFFFFF;--ink:#15102E;--muted:#676183;--line:#E3DEF3;
+  --ground:#FCFBFF;--panel:#FFFFFF;--ink:#15102E;--muted:#676183;--line:#E6E1F5;
   --purple:#6E54FF;--purple-deep:#4B34D6;--night:#1B1242;--night-line:#3A2F6E;--lilac:#C9BEFF;
   --pass:#0E9F6A;--pass-soft:#7FE7BE;--refund:#B86A00;--refund-soft:#FFC56B;
+  --lift:0 1px 2px rgba(27,18,66,.05),0 14px 34px -22px rgba(27,18,66,.28);
 }
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-body{margin:0;background:var(--ground);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:18px;line-height:1.55}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:96px;overflow-x:hidden;overflow-x:clip}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:18px;line-height:1.55;position:relative;overflow-x:hidden;overflow-x:clip}
+/* The flower sits behind everything, mostly off the right edge, and turns very slowly. */
+body::before{content:"";position:absolute;z-index:0;top:150px;right:-210px;width:640px;height:640px;pointer-events:none;
+  background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-110%20-110%20220%20220%22%3E%3Cpath%20transform%3D%22rotate(0)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(45)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(90)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(135)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(180)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(225)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(270)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(315)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(22.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(67.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(112.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(157.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(202.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(247.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(292.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(337.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%236E54FF%22%20fill-opacity%3D%22.75%22%2F%3E%3Ccircle%20r%3D%2213%22%20fill%3D%22%236E54FF%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;opacity:.085;animation:bloom 240s linear infinite}
+.wrap{position:relative;z-index:1}
 a{color:var(--purple-deep);text-underline-offset:4px}
-a:hover{color:var(--purple)}
 :focus-visible{outline:3px solid var(--purple);outline-offset:3px;border-radius:6px}
 .mono,code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.86em}
 .wrap{max-width:1120px;margin:0 auto;padding:0 28px}
 img,svg{max-width:100%}
 table{border-collapse:collapse}
-@media (max-width:520px){body{font-size:17px}.wrap{padding:0 18px}}
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+main{animation:arrive .55s cubic-bezier(.2,.7,.2,1) both}
+@keyframes arrive{from{opacity:0;transform:translateY(10px)}}
+@keyframes bloom{to{transform:rotate(360deg)}}
+@media (max-width:860px){body::before{width:420px;height:420px;right:-190px;top:110px}}
+@media (max-width:520px){body{font-size:17px}.wrap{padding:0 18px}body::before{width:320px;height:320px;right:-150px;opacity:.07}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}body::before,main{animation:none}}
 
-nav.site{display:flex;justify-content:space-between;align-items:center;gap:10px 28px;flex-wrap:wrap;padding:20px 0;position:relative}
-nav.site .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:22px;letter-spacing:-.01em;text-decoration:none;color:var(--ink);min-height:44px}
-nav.site .brand svg{width:32px;height:32px}
-nav.site ul{display:flex;align-items:center;flex-wrap:wrap;gap:4px 24px;list-style:none;margin:0;padding:0;font-size:17px}
-nav.site ul a{color:var(--ink);text-decoration:none;padding:8px 0;border-bottom:2px solid transparent;display:inline-block}
-nav.site ul a:hover{border-bottom-color:var(--purple)}
-nav.site ul a[aria-current="page"]{border-bottom-color:var(--purple);font-weight:500}
-nav.site ul a.cta{background:var(--purple);color:#fff;padding:10px 16px;border-radius:10px;border:0;font-weight:500}
-nav.site ul a.cta:hover{background:var(--purple-deep)}
-nav.site .menu-btn{display:none;font:inherit;font-size:17px;font-weight:500;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:0 16px;min-height:44px;cursor:pointer;align-items:center;gap:10px}
+header.site{position:sticky;top:0;z-index:50;margin:0 0 6px}
+header.site::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:-100vmax;right:-100vmax;background:var(--ground);border-bottom:1px solid var(--line);transition:box-shadow .25s ease}
+header.site.stuck::before{box-shadow:0 10px 30px -22px rgba(27,18,66,.45)}
+
+.util{position:relative;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 24px;padding:8px 0;font-size:14.5px;color:#D9D2F7}
+.util::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:-100vmax;right:-100vmax;background:var(--night)}
+.util p{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+.util .net{display:inline-flex;align-items:center;gap:8px;color:#fff;font-weight:500}
+.util .net::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pass-soft);animation:beat 2.6s ease-in-out infinite}
+.util .note{color:#B9AFE6}
+.util ul{display:flex;gap:4px 22px;list-style:none;margin:0;padding:0}
+.util a{color:#fff;text-decoration:none;padding:3px 0;display:inline-block}
+@keyframes beat{50%{opacity:.5}}
+
+nav.site{display:flex;justify-content:space-between;align-items:center;gap:10px 28px;flex-wrap:wrap;padding:14px 0;position:relative}
+nav.site .brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink);min-height:48px}
+nav.site .brand svg{width:38px;height:38px;flex:none}
+nav.site .brand b{display:block;font-weight:700;font-size:23px;letter-spacing:-.02em;line-height:1.05}
+nav.site .brand small{display:block;font-size:13.5px;color:var(--muted);line-height:1.2;margin-top:2px;white-space:nowrap}
+nav.site .menus{display:flex;align-items:center;flex-wrap:wrap;gap:4px 2px;font-size:16.5px}
+nav.site .m{position:relative}
+nav.site .m>button{font:inherit;color:var(--ink);background:none;border:0;border-radius:9px;padding:10px 10px;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+nav.site .m>button::after{content:"";width:7px;height:7px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:translateY(-2px) rotate(45deg);transition:transform .2s ease}
+nav.site .m.here>button{font-weight:500;color:var(--purple-deep)}
+nav.site .m.open>button{background:#EFEBFF}
+nav.site .m.open>button::after{transform:translateY(2px) rotate(225deg)}
+nav.site .drop{display:flex;flex-wrap:wrap;gap:2px 18px;padding:2px 12px 8px}
+nav.site .drop a{color:var(--ink);text-decoration:none;display:block}
+nav.site .drop strong{display:block;font-weight:500}
+nav.site .drop span{display:block;font-size:14.5px;color:var(--muted);line-height:1.35;margin-top:1px}
+nav.site .drop a[aria-current="page"] strong{color:var(--purple-deep)}
+nav.site .acts{display:flex;gap:10px;margin-left:10px}
+nav.site .acts a{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 16px;border-radius:11px;font-weight:500;font-size:16.5px;text-decoration:none;white-space:nowrap}
+nav.site .acts .ghost{color:var(--ink);border:1.5px solid #CFC8EA;background:var(--panel)}
+nav.site .acts .cta{background:var(--purple);color:#fff;box-shadow:0 8px 20px -12px rgba(110,84,255,.9)}
+nav.site .menu-btn{display:none;font:inherit;font-size:17px;font-weight:500;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:0 16px;min-height:46px;cursor:pointer;align-items:center;gap:10px}
 nav.site .menu-btn .bars{width:18px;height:12px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);position:relative}
 nav.site .menu-btn .bars::after{content:"";position:absolute;left:0;right:0;top:3px;border-top:2px solid var(--ink)}
-@media (max-width:860px){
-  .js nav.site .menu-btn{display:inline-flex}
-  .js nav.site ul{display:none;width:100%;flex-direction:column;align-items:stretch;gap:0;background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:8px 16px 14px;margin-top:4px}
-  .js nav.site.open ul{display:flex}
-  .js nav.site ul li{border-bottom:1px solid var(--line)}
-  .js nav.site ul li:last-child{border-bottom:0;padding-top:12px}
-  .js nav.site ul a{display:block;padding:14px 0;border-bottom:0;font-size:18px}
-  .js nav.site ul a[aria-current="page"]{color:var(--purple-deep)}
-  .js nav.site ul a.cta{text-align:center;padding:14px 16px}
-}
 
-footer.site{margin-top:96px;background:var(--night);color:#D9D2F7;padding:64px 0 34px;font-size:16.5px;
-  box-shadow:0 0 0 100vmax var(--night);clip-path:inset(0 -100vmax)}
+/* With JavaScript: menus drop down on click. */
+@media (min-width:981px){
+  .js nav.site,.js nav.site .menus{flex-wrap:nowrap}
+  .js nav.site .drop{display:none;position:absolute;top:calc(100% + 12px);left:-10px;width:340px;flex-direction:column;gap:2px;padding:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 2px 4px rgba(27,18,66,.05),0 28px 60px -28px rgba(27,18,66,.45)}
+  .js nav.site .m:nth-last-of-type(-n+3) .drop{left:auto;right:-10px}
+  .js nav.site .m.open .drop{display:flex;animation:unfold .18s ease-out both}
+  .js nav.site .drop a{padding:11px 14px;border-radius:10px}
+  .js nav.site .drop a[aria-current="page"]{background:#F3F0FF}
+}
+@keyframes unfold{from{opacity:0;transform:translateY(-6px)}}
+@media (min-width:981px) and (max-width:1240px){nav.site .brand small{display:none}}
+@media (max-width:980px){
+  .util .note,.util ul li.opt{display:none}
+  nav.site .brand small{display:none}
+  .js nav.site .menu-btn{display:inline-flex}
+  .js nav.site .menus{display:none;width:100%;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:6px 18px 18px;margin-top:4px;box-shadow:var(--lift);max-height:calc(100vh - 150px);overflow-y:auto}
+  .js nav.site.open .menus{display:flex;animation:unfold .18s ease-out both}
+  .js nav.site .m{border-bottom:1px solid var(--line);padding:12px 0 8px}
+  .js nav.site .m>button{padding:0;font-size:14.5px;color:var(--muted);cursor:default;pointer-events:none}
+  .js nav.site .m>button::after{display:none}
+  .js nav.site .m.open>button{background:none}
+  .js nav.site .drop{flex-direction:column;gap:0;padding:4px 0 0}
+  .js nav.site .drop a{padding:9px 0}
+  .js nav.site .drop span{display:none}
+  .js nav.site .drop strong{font-size:18px}
+  .js nav.site .acts{margin:16px 0 0;flex-direction:column}
+  .js nav.site .acts a{min-height:52px;font-size:18px}
+}
+@media (max-width:520px){.util{font-size:13.5px}nav.site{padding:10px 0}}
+@media (prefers-reduced-motion:reduce){.util .net::before,.js nav.site .m.open .drop,.js nav.site.open .menus{animation:none}nav.site .m>button::after,header.site::before{transition:none}}
+
+footer.site{position:relative;margin-top:104px;color:#D9D2F7;padding:68px 0 30px;font-size:16.5px}
+footer.site::before{content:"";position:absolute;z-index:-2;top:0;bottom:0;left:-100vmax;right:-100vmax;background:var(--night)}
+/* The same flower as the page, pale on the dark band. */
+footer.site::after{content:"";position:absolute;z-index:-1;top:-150px;right:-230px;width:560px;height:560px;pointer-events:none;
+  background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-110%20-110%20220%20220%22%3E%3Cpath%20transform%3D%22rotate(0)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(45)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(90)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(135)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(180)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(225)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(270)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(315)%22%20d%3D%22M0%20-14C20%20-40%2020%20-78%200%20-104C-20%20-78%20-20%20-40%200%20-14Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.5%22%2F%3E%3Cpath%20transform%3D%22rotate(22.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(67.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(112.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(157.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(202.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(247.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(292.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.75%22%2F%3E%3Cpath%20transform%3D%22rotate(337.5)%22%20d%3D%22M0%20-10C13%20-30%2013%20-56%200%20-74C-13%20-56%20-13%20-30%200%20-10Z%22%20fill%3D%22%23C9BEFF%22%20fill-opacity%3D%22.75%22%2F%3E%3Ccircle%20r%3D%2213%22%20fill%3D%22%23C9BEFF%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;opacity:.07;clip-path:inset(150px 0 0 0)}
 footer.site a{color:#fff;text-decoration:none}
-footer.site a:hover{color:var(--lilac);text-decoration:underline;text-underline-offset:4px}
-footer.site .close{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:36px 56px;align-items:end;padding-bottom:48px;border-bottom:1px solid var(--night-line)}
+footer.site .close{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:36px 56px;align-items:end;padding-bottom:50px;border-bottom:1px solid var(--night-line)}
 footer.site .mark{display:flex;align-items:center;gap:16px;font-size:clamp(44px,6vw,76px);font-weight:700;letter-spacing:-.04em;line-height:1;color:#fff;margin:0 0 18px}
 footer.site .mark svg{width:.9em;height:.9em;flex:none}
 footer.site .pitch{font-size:21px;line-height:1.4;margin:0;max-width:34ch;color:#E9E4FF}
 footer.site .acts{display:flex;flex-wrap:wrap;gap:12px}
-footer.site .acts a{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 24px;border-radius:12px;font-weight:500;font-size:18px;text-decoration:none}
+footer.site .acts a{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 24px;border-radius:12px;font-weight:500;font-size:18px}
 footer.site .acts a.one{background:var(--purple);color:#fff}
-footer.site .acts a.one:hover{background:#8169FF;color:#fff}
 footer.site .acts a.two{border:1.5px solid #5A4BA3;color:#fff}
-footer.site .acts a.two:hover{border-color:var(--lilac);color:#fff}
 footer.site .acts p{flex-basis:100%;margin:6px 0 0;font-size:15px;color:#A99FD6}
-footer.site .map{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:30px 40px;padding:44px 0}
-footer.site h2{font-size:15px;font-weight:500;color:var(--lilac);margin:0 0 12px}
+
+footer.site .map{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:34px 40px;padding:48px 0}
+footer.site h2{font-size:15px;font-weight:500;color:var(--lilac);margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--night-line)}
 footer.site ul{list-style:none;margin:0;padding:0}
-footer.site li a{display:inline-block;padding:6px 0;font-size:17px}
-footer.site .facts{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:16px 44px;padding:22px 24px;background:#241960;border-radius:16px;margin:0}
-footer.site .facts dt{font-size:14px;color:var(--lilac)}
-footer.site .facts dd{margin:3px 0 0;color:#fff;font-weight:500}
-footer.site .facts dd.mono{font-size:14px;font-weight:400;word-break:break-all}
-footer.site .facts .live{display:inline-flex;align-items:center;gap:8px}
-footer.site .facts .live::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--refund-soft)}
-footer.site .legal{display:flex;flex-wrap:wrap;gap:8px 28px;justify-content:space-between;margin:26px 0 0;font-size:14.5px;color:#A99FD6}
-@media (max-width:860px){
-  footer.site{padding-top:48px;margin-top:72px}
-  footer.site .close{grid-template-columns:1fr;align-items:start;padding-bottom:36px}
-  footer.site .map{grid-template-columns:1fr 1fr;padding:34px 0}
-  footer.site li a{padding:9px 0}
-  footer.site .facts{grid-template-columns:1fr 1fr}
-  footer.site .facts .wide{grid-column:1/-1}
+footer.site .map li{margin:0 0 14px}
+footer.site .map a{display:block;font-size:17px;font-weight:500}
+footer.site .map span{display:block;font-size:14.5px;color:#A99FD6;line-height:1.4;margin-top:1px}
+
+footer.site .chain{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:0;background:#241960;border:1px solid var(--night-line);border-radius:18px;overflow:hidden}
+footer.site .chain>div{padding:24px 26px}
+footer.site .chain .today{border-right:1px solid var(--night-line)}
+footer.site .chain h2{border:0;padding:0;margin:0 0 8px}
+footer.site .today p{margin:0;font-size:15.5px;line-height:1.5;color:#D9D2F7}
+footer.site .today .state{display:inline-flex;align-items:center;gap:9px;color:#fff;font-weight:500;font-size:17px;margin:0 0 8px}
+footer.site .today .state::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--refund-soft)}
+footer.site dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px 22px;margin:0;font-size:15px}
+footer.site dt{color:var(--lilac);white-space:nowrap}
+footer.site dd{margin:0;color:#fff}
+footer.site dd.mono{font-size:13.5px;word-break:break-all}
+footer.site dd a{text-decoration:underline;text-decoration-color:#5A4BA3;text-underline-offset:4px}
+
+footer.site .legal{display:flex;flex-wrap:wrap;gap:8px 28px;justify-content:space-between;align-items:center;margin:28px 0 0;font-size:14.5px;color:#A99FD6}
+footer.site .legal ul{display:flex;flex-wrap:wrap;gap:6px 22px}
+footer.site .legal a{color:#D9D2F7;padding:4px 0;display:inline-block}
+@media (max-width:900px){
+  footer.site{padding-top:52px;margin-top:76px}
+  footer.site .close{grid-template-columns:1fr;align-items:start;padding-bottom:38px}
+  footer.site .map{grid-template-columns:1fr 1fr;padding:38px 0}
+  footer.site .chain{grid-template-columns:1fr}
+  footer.site .chain .today{border-right:0;border-bottom:1px solid var(--night-line)}
+  footer.site::after{width:380px;height:380px;right:-180px;top:-100px;clip-path:inset(100px 0 0 0)}
 }
 @media (max-width:520px){
   footer.site .acts a{flex:1 1 100%}
   footer.site .pitch{font-size:19px}
-  footer.site .facts{padding:18px}
+  footer.site .map{gap:28px 22px}
+  footer.site .map span{display:none}
+  footer.site .map li{margin-bottom:12px}
+  footer.site .chain>div{padding:20px}
+  footer.site dl{grid-template-columns:1fr;gap:2px}
+  footer.site dd{margin-bottom:10px}
 }
 
 .post{max-width:720px;padding:34px 0 0}
@@ -132,13 +205,11 @@ footer.site .legal{display:flex;flex-wrap:wrap;gap:8px 28px;justify-content:spac
 .demo-cta{background:var(--night);color:#F3F0FF;border-radius:18px;padding:26px 28px;margin:48px 0 0;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;justify-content:space-between}
 .demo-cta p{margin:0;font-size:20px;font-weight:500;max-width:30ch;line-height:1.3}
 .demo-cta a{background:var(--purple);color:#fff;text-decoration:none;font-weight:500;padding:13px 20px;border-radius:11px}
-.demo-cta a:hover{background:#8169FF;color:#fff}
 .more{margin:52px 0 0}
 .more h2{font-size:20px;margin:0 0 6px}
 .list{list-style:none;margin:0;padding:0}
 .list li{padding:22px 0;border-bottom:1px solid var(--line)}
 .list a.t{font-size:25px;font-weight:700;letter-spacing:-.02em;line-height:1.2;text-decoration:none;color:var(--ink)}
-.list a.t:hover{color:var(--purple-deep)}
 .list p{margin:6px 0 4px;color:#443E62;max-width:64ch}
 .list small{color:var(--muted);font-size:15px}
 .index{max-width:820px;padding:34px 0 0}
@@ -149,15 +220,38 @@ footer.site .legal{display:flex;flex-wrap:wrap;gap:8px 28px;justify-content:spac
 <body>
 <div class="wrap">
 <script>document.documentElement.className+=" js"</script>
-<nav class="site" aria-label="Main">
-  <a class="brand" href="/" aria-label="Surety home">
-    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#6E54FF"/><g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 13l15 6v12c0 10-6 16-15 19-9-3-15-9-15-19V19z"/><path d="M25 31l5 5 9-10"/></g></svg>
-    Surety
-  </a>
-  <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-menu"><span class="bars" aria-hidden="true"></span>Menu</button>
-  <ul id="site-menu"><li><a href="/how-it-works/">How it works</a></li><li><a href="/providers/">Providers</a></li><li><a href="/bond/">Bond your API</a></li><li><a href="/docs/">Docs</a></li><li><a href="/articles/" aria-current="page">Articles</a></li><li><a class="cta" href="/#demo">Run the demo</a></li></ul>
-</nav>
-<script>(function(){var n=document.querySelector("nav.site"),b=n.querySelector(".menu-btn");b.addEventListener("click",function(){var o=n.classList.toggle("open");b.setAttribute("aria-expanded",o?"true":"false")});n.querySelector("ul").addEventListener("click",function(e){if(e.target.tagName==="A"){n.classList.remove("open");b.setAttribute("aria-expanded","false")}})})();</script>
+<header class="site">
+  <div class="util">
+    <p><span class="net">Live on Monad testnet</span><span class="note">Experimental and unaudited. Test funds only.</span></p>
+    <ul>
+      <li class="opt"><a href="https://testnet.monadvision.com/address/0xf3F9e32De47a143149F7398f25f264b98a01273C" rel="noopener">Vault contract</a></li>
+      <li><a href="https://github.com/j-6-z/surety">GitHub</a></li>
+      <li><a href="/faq/">FAQ</a></li>
+    </ul>
+  </div>
+  <nav class="site" aria-label="Main">
+    <a class="brand" href="/" aria-label="Surety home"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#6E54FF"/><g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 13l15 6v12c0 10-6 16-15 19-9-3-15-9-15-19V19z"/><path d="M25 31l5 5 9-10"/></g></svg><span><b>Surety</b><small>Bonded refunds for agent payments</small></span></a>
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-menu"><span class="bars" aria-hidden="true"></span>Menu</button>
+    <div class="menus" id="site-menu">
+    <div class="m"><button type="button" aria-expanded="false" aria-controls="menu-0">Product</button><div class="drop" id="menu-0"><a href="/how-it-works/"><strong>How it works</strong><span>The bond, the relay and the refund, start to finish</span></a><a href="/#demo"><strong>Live demo</strong><span>Run a paid call and watch a refund happen</span></a><a href="/providers/"><strong>Provider directory</strong><span>Every bonded API and its record</span></a><a href="/#use"><strong>Check a provider</strong><span>Look up a bond and trust score by address</span></a></div></div>
+    <div class="m"><button type="button" aria-expanded="false" aria-controls="menu-1">For providers</button><div class="drop" id="menu-1"><a href="/bond/"><strong>Bond your API</strong><span>List it and post a bond from your browser</span></a><a href="/kit/"><strong>Provider kit</strong><span>A starter project for a new bonded API</span></a><a href="/articles/bond-your-x402-api/"><strong>Bonding with code</strong><span>The manual route, step by step</span></a></div></div>
+    <div class="m"><button type="button" aria-expanded="false" aria-controls="menu-2">Developers</button><div class="drop" id="menu-2"><a href="/docs/"><strong>Docs</strong><span>Relay addresses, response headers, the trust record</span></a><a href="/docs/#spending-limits"><strong>Spending limits</strong><span>Cap what an agent can pay per call and per day</span></a><a href="/.well-known/surety.json"><strong>SLA document</strong><span>The promise our own API is held to</span></a><a href="https://github.com/j-6-z/surety"><strong>Source on GitHub</strong><span>The contract, the relay and this site</span></a></div></div>
+    <div class="m here"><button type="button" aria-expanded="false" aria-controls="menu-3">Learn</button><div class="drop" id="menu-3"><a href="/articles/" aria-current="page"><strong>Articles</strong><span>Why agent payments need refunds, and how bonds work</span></a><a href="/faq/"><strong>FAQ</strong><span>Straight answers, including what this is not</span></a></div></div>
+    <div class="acts"><a class="ghost" href="/bond/">Bond your API</a><a class="cta" href="/#demo">Run the demo</a></div>
+    </div>
+  </nav>
+</header>
+<script>(function(){
+var h=document.querySelector("header.site"),n=h.querySelector("nav.site"),b=n.querySelector(".menu-btn"),ms=[].slice.call(n.querySelectorAll(".m"));
+function shut(except){ms.forEach(function(m){if(m!==except){m.classList.remove("open");m.firstChild.setAttribute("aria-expanded","false")}})}
+function all(open){n.classList.toggle("open",open);b.setAttribute("aria-expanded",open?"true":"false")}
+ms.forEach(function(m){m.firstChild.addEventListener("click",function(e){e.stopPropagation();shut(m);var o=m.classList.toggle("open");this.setAttribute("aria-expanded",o?"true":"false")})});
+b.addEventListener("click",function(e){e.stopPropagation();all(!n.classList.contains("open"))});
+n.addEventListener("click",function(e){if(e.target.closest("a")){shut();all(false)}});
+document.addEventListener("click",function(e){if(!n.contains(e.target)){shut();all(false)}});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){shut();all(false)}});
+function s(){h.classList.toggle("stuck",window.scrollY>8)}s();window.addEventListener("scroll",s,{passive:true});
+})();</script>
 <main>
 <div class="index">
   <h1>Articles</h1>
@@ -179,37 +273,37 @@ footer.site .legal{display:flex;flex-wrap:wrap;gap:8px 28px;justify-content:spac
   </div>
 
   <nav class="map" aria-label="Site">
-    <div><h2>Use it</h2><ul>
-      <li><a href="/#demo">Live demo</a></li>
-      <li><a href="/bond/">Bond your API</a></li>
-      <li><a href="/#use">Check a provider</a></li>
-      <li><a href="/providers/">Provider directory</a></li>
-    </ul></div>
-    <div><h2>Understand it</h2><ul>
-      <li><a href="/how-it-works/">How it works</a></li>
-      <li><a href="/faq/">FAQ</a></li>
-      <li><a href="/articles/">Articles</a></li>
-      <li><a href="/rss.xml">RSS feed</a></li>
-    </ul></div>
-    <div><h2>Build on it</h2><ul>
-      <li><a href="/docs/">Docs</a></li>
-      <li><a href="/.well-known/surety.json">SLA document</a></li>
-      <li><a href="/articles/bond-your-x402-api/">Bonding with code</a></li>
-    </ul></div>
-    <div><h2>Check our work</h2><ul>
-      <li><a href="https://github.com/j-6-z/surety">Source on GitHub</a></li>
-      <li><a href="https://testnet.monadvision.com/address/0xf3F9e32De47a143149F7398f25f264b98a01273C" rel="noopener">Vault on the explorer</a></li>
-      <li><a href="https://github.com/j-6-z/surety/blob/main/SECURITY.md">Report a problem</a></li>
-    </ul></div>
+    <div><h2>Product</h2><ul><li><a href="/#demo">Live demo</a><span>Run a paid call and watch a refund</span></li><li><a href="/how-it-works/">How it works</a><span>The bond, the relay, the refund</span></li><li><a href="/providers/">Provider directory</a><span>Every bonded API and its record</span></li><li><a href="/#use">Check a provider</a><span>Bond and trust score by address</span></li></ul></div>
+    <div><h2>For providers</h2><ul><li><a href="/bond/">Bond your API</a><span>From your browser, with your wallet</span></li><li><a href="/kit/">Provider kit</a><span>Starter project for a bonded API</span></li><li><a href="/articles/bond-your-x402-api/">Bonding with code</a><span>The manual route, step by step</span></li></ul></div>
+    <div><h2>Developers</h2><ul><li><a href="/docs/">Docs</a><span>Relay addresses, headers, trust record</span></li><li><a href="/docs/#spending-limits">Spending limits</a><span>Cap an agent per call and per day</span></li><li><a href="/.well-known/surety.json">SLA document</a><span>The promise our own API is held to</span></li><li><a href="/providers.json">Directory as JSON</a><span>The provider list, for programs</span></li><li><a href="https://github.com/j-6-z/surety">Source on GitHub</a><span>Contract, relay and this site</span></li></ul></div>
+    <div><h2>Learn</h2><ul><li><a href="/articles/">Articles</a><span>Agent payments, bonds and refunds</span></li><li><a href="/faq/">FAQ</a><span>Including what this is not</span></li><li><a href="/rss.xml">RSS feed</a><span>New articles as they are published</span></li><li><a href="https://github.com/j-6-z/surety/blob/main/SECURITY.md">Report a problem</a><span>Security issues and how to reach us</span></li></ul></div>
   </nav>
 
-  <dl class="facts">
-    <div><dt>Network</dt><dd>Monad testnet</dd></div>
-    <div><dt>Status</dt><dd><span class="live">Experimental, not audited</span></dd></div>
-    <div class="wide"><dt>Vault contract</dt><dd class="mono">0xf3F9e32De47a143149F7398f25f264b98a01273C</dd></div>
-  </dl>
+  <div class="chain">
+    <div class="today">
+      <h2>Where this stands</h2>
+      <p class="state">Experimental, not audited</p>
+      <p>Surety runs on Monad testnet with test USDC. One relay, run by us, decides whether a call kept its promise. Nothing here holds real money yet.</p>
+    </div>
+    <div>
+      <h2>On-chain details</h2>
+      <dl>
+        <dt>Network</dt><dd>Monad testnet, chain ID 10143</dd>
+        <dt>Vault contract</dt><dd class="mono"><a href="https://testnet.monadvision.com/address/0xf3F9e32De47a143149F7398f25f264b98a01273C" rel="noopener">0xf3F9e32De47a143149F7398f25f264b98a01273C</a></dd>
+        <dt>Payment token</dt><dd class="mono"><a href="https://testnet.monadvision.com/address/0x534b2f3A21130d7a60830c2Df862319e593943A3" rel="noopener">0x534b2f3A21130d7a60830c2Df862319e593943A3</a> <span>(test USDC)</span></dd>
+        <dt>Payments</dt><dd>x402, settled per call</dd>
+      </dl>
+    </div>
+  </div>
 
-  <p class="legal"><span>Test funds only. Nothing here is financial advice.</span><span>Open source under the <a href="https://github.com/j-6-z/surety/blob/main/LICENSE">MIT licence</a></span></p>
+  <div class="legal">
+    <span>&copy; 2026 Surety. Test funds only. Nothing here is financial advice.</span>
+    <ul>
+      <li><a href="https://github.com/j-6-z/surety/blob/main/LICENSE">MIT licence</a></li>
+      <li><a href="https://github.com/j-6-z/surety">GitHub</a></li>
+      <li><a href="#top">Back to top</a></li>
+    </ul>
+  </div>
 </footer>
 </div>
 </body>
