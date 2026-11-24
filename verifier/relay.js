@@ -40,6 +40,8 @@ const MAX_BODY = 1024 * 1024;
  * @param {number} [o.hardTimeoutMs]            give up on a provider after this long
  * @param {number} [o.slaTtlMs]                 how long to cache an SLA document
  * @param {number} [o.statusTtlMs]              how long to cache a provider's active status
+ * @param {(provider: string, path: string) => boolean} [o.skipStats]
+ *        calls that should not count toward the trust score (the operator's own demo endpoint)
  */
 function createRelay(o) {
   const provider = o.signer.provider;
@@ -222,7 +224,9 @@ function createRelay(o) {
       out["x-surety-reason"] = check.reason;
       const receipt = parseReceipt(upstream.headers);
       // Only paid calls count toward the trust score: free calls are too cheap to fake.
-      if (receipt) record(providerAddr, check.pass, { path: restPath, reason: check.reason, latencyMs, status: upstream.status });
+      if (receipt && !(o.skipStats && o.skipStats(providerAddr, restPath))) {
+        record(providerAddr, check.pass, { path: restPath, reason: check.reason, latencyMs, status: upstream.status });
+      }
 
       if (!check.pass) {
         if (!receipt) {
@@ -275,6 +279,8 @@ function createRelay(o) {
   const server = http.createServer(handle);
   server.handle = handle; // lets another HTTP server mount the relay's routes
   server.trust = trust;
+  server.sla = loadSla;
+  server.known = () => [...slaCache.keys()]; // providers this relay has served since it started
   server.on("close", () => logStream.end());
   return server;
 }

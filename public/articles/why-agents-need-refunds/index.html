@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#6E54FF">
+<title>Why AI agents need refunds, and why x402 alone doesn&#39;t give them one | Surety</title>
+<meta name="description" content="An x402 payment is final the moment it settles. Here is what that costs an agent when an API fails, and how a provider bond changes it.">
+<link rel="canonical" href="https://www.surety.buzz/articles/why-agents-need-refunds/">
+<meta property="og:site_name" content="Surety">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Why AI agents need refunds, and why x402 alone doesn&#39;t give them one | Surety">
+<meta property="og:description" content="An x402 payment is final the moment it settles. Here is what that costs an agent when an API fails, and how a provider bond changes it.">
+<meta property="og:url" content="https://www.surety.buzz/articles/why-agents-need-refunds/">
+<meta property="og:image" content="https://www.surety.buzz/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Why AI agents need refunds, and why x402 alone doesn&#39;t give them one | Surety">
+<meta name="twitter:description" content="An x402 payment is final the moment it settles. Here is what that costs an agent when an API fails, and how a provider bond changes it.">
+<meta name="twitter:image" content="https://www.surety.buzz/og.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%236E54FF%22%2F%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M32%2013l15%206v12c0%2010-6%2016-15%2019-9-3-15-9-15-19V19z%22%2F%3E%3Cpath%20d%3D%22M25%2031l5%205%209-10%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="alternate" type="application/rss+xml" title="Surety articles" href="https://www.surety.buzz/rss.xml">
+<meta property="article:published_time" content="2026-11-24">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Why AI agents need refunds, and why x402 alone doesn't give them one","description":"An x402 payment is final the moment it settles. Here is what that costs an agent when an API fails, and how a provider bond changes it.","datePublished":"2026-11-24","dateModified":"2026-11-24","mainEntityOfPage":"https://www.surety.buzz/articles/why-agents-need-refunds/","image":"https://www.surety.buzz/og.png","author":{"@type":"Organization","name":"Surety","url":"https://www.surety.buzz/"},"publisher":{"@type":"Organization","name":"Surety","url":"https://www.surety.buzz/"}}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F5F3FC;--panel:#FFFFFF;--ink:#15102E;--muted:#676183;--line:#E3DEF3;
+  --purple:#6E54FF;--purple-deep:#4B34D6;--night:#1B1242;--night-line:#3A2F6E;--lilac:#C9BEFF;
+  --pass:#0E9F6A;--pass-soft:#7FE7BE;--refund:#B86A00;--refund-soft:#FFC56B;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:18px;line-height:1.55}
+a{color:var(--purple-deep);text-underline-offset:4px}
+a:hover{color:var(--purple)}
+:focus-visible{outline:3px solid var(--purple);outline-offset:3px;border-radius:6px}
+.mono,code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.86em}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+img,svg{max-width:100%}
+table{border-collapse:collapse}
+@media (max-width:520px){body{font-size:17px}.wrap{padding:0 18px}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+nav.site{display:flex;justify-content:space-between;align-items:center;gap:10px 28px;flex-wrap:wrap;padding:20px 0;position:relative}
+nav.site .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:22px;letter-spacing:-.01em;text-decoration:none;color:var(--ink);min-height:44px}
+nav.site .brand svg{width:32px;height:32px}
+nav.site ul{display:flex;align-items:center;flex-wrap:wrap;gap:4px 24px;list-style:none;margin:0;padding:0;font-size:17px}
+nav.site ul a{color:var(--ink);text-decoration:none;padding:8px 0;border-bottom:2px solid transparent;display:inline-block}
+nav.site ul a:hover{border-bottom-color:var(--purple)}
+nav.site ul a[aria-current="page"]{border-bottom-color:var(--purple);font-weight:500}
+nav.site ul a.cta{background:var(--purple);color:#fff;padding:10px 16px;border-radius:10px;border:0;font-weight:500}
+nav.site ul a.cta:hover{background:var(--purple-deep)}
+nav.site .menu-btn{display:none;font:inherit;font-size:17px;font-weight:500;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:0 16px;min-height:44px;cursor:pointer;align-items:center;gap:10px}
+nav.site .menu-btn .bars{width:18px;height:12px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);position:relative}
+nav.site .menu-btn .bars::after{content:"";position:absolute;left:0;right:0;top:3px;border-top:2px solid var(--ink)}
+@media (max-width:860px){
+  .js nav.site .menu-btn{display:inline-flex}
+  .js nav.site ul{display:none;width:100%;flex-direction:column;align-items:stretch;gap:0;background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:8px 16px 14px;margin-top:4px}
+  .js nav.site.open ul{display:flex}
+  .js nav.site ul li{border-bottom:1px solid var(--line)}
+  .js nav.site ul li:last-child{border-bottom:0;padding-top:12px}
+  .js nav.site ul a{display:block;padding:14px 0;border-bottom:0;font-size:18px}
+  .js nav.site ul a[aria-current="page"]{color:var(--purple-deep)}
+  .js nav.site ul a.cta{text-align:center;padding:14px 16px}
+}
+
+footer.site{margin-top:84px;border-top:1px solid var(--line);padding:34px 0 56px;color:var(--muted);font-size:16px}
+footer.site .cols{display:grid;grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,1fr));gap:28px 40px}
+footer.site .about strong{color:var(--ink);font-size:19px;display:block;margin-bottom:6px}
+footer.site .about{margin:0;max-width:40ch}
+footer.site h2{font-size:15px;font-weight:500;color:var(--ink);margin:0 0 8px}
+footer.site ul{list-style:none;margin:0;padding:0}
+footer.site li a{display:inline-block;padding:5px 0}
+footer.site .vault{margin:28px 0 0;padding-top:18px;border-top:1px solid var(--line);font-size:14.5px}
+footer.site .mono{font-size:13.5px;word-break:break-all}
+@media (max-width:860px){footer.site .cols{grid-template-columns:1fr 1fr}footer.site .about{grid-column:1/-1}footer.site li a{padding:9px 0}}
+
+.post{max-width:720px;padding:34px 0 0}
+.post header h1{font-size:clamp(34px,4.6vw,54px);line-height:1.04;letter-spacing:-.03em;margin:0 0 16px;font-weight:700}
+.post .standfirst{font-size:21px;line-height:1.45;color:#3B3558;margin:0 0 14px}
+.post .meta{color:var(--muted);font-size:15.5px;margin:0 0 34px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+.prose{font-size:19px;line-height:1.65}
+.prose h2{font-size:28px;letter-spacing:-.02em;line-height:1.15;margin:44px 0 12px}
+.prose h3{font-size:22px;letter-spacing:-.01em;margin:32px 0 8px}
+.prose p{margin:0 0 20px}
+.prose ul,.prose ol{margin:0 0 22px;padding-left:24px}
+.prose li{margin-bottom:8px}
+.prose code{background:#E9E4FA;padding:2px 6px;border-radius:5px;overflow-wrap:anywhere}
+.prose pre{background:var(--night);color:#E9E4FF;padding:20px;border-radius:14px;overflow-x:auto;margin:0 0 24px;font-size:15px;line-height:1.6}
+.prose pre code{background:none;padding:0;font-size:1em;overflow-wrap:normal}
+.prose .tbl{overflow-x:auto;margin:0 0 24px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.prose table{width:100%;font-size:16.5px;line-height:1.45}
+.prose th,.prose td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+.prose th{font-weight:500;color:var(--muted);font-size:15px;white-space:nowrap}
+.prose tr:last-child td{border-bottom:0}
+.prose td:first-child{white-space:nowrap}
+.prose td code{background:none;padding:0}
+.prose strong{font-weight:700}
+@media (max-width:520px){.prose{font-size:17.5px}.prose h2{font-size:25px;margin-top:38px}.post .standfirst,.index .standfirst{font-size:19px}.prose td:first-child{white-space:normal}.demo-cta a{width:100%;text-align:center}}
+.demo-cta{background:var(--night);color:#F3F0FF;border-radius:18px;padding:26px 28px;margin:48px 0 0;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;justify-content:space-between}
+.demo-cta p{margin:0;font-size:20px;font-weight:500;max-width:30ch;line-height:1.3}
+.demo-cta a{background:var(--purple);color:#fff;text-decoration:none;font-weight:500;padding:13px 20px;border-radius:11px}
+.demo-cta a:hover{background:#8169FF;color:#fff}
+.more{margin:52px 0 0}
+.more h2{font-size:20px;margin:0 0 6px}
+.list{list-style:none;margin:0;padding:0}
+.list li{padding:22px 0;border-bottom:1px solid var(--line)}
+.list a.t{font-size:25px;font-weight:700;letter-spacing:-.02em;line-height:1.2;text-decoration:none;color:var(--ink)}
+.list a.t:hover{color:var(--purple-deep)}
+.list p{margin:6px 0 4px;color:#443E62;max-width:64ch}
+.list small{color:var(--muted);font-size:15px}
+.index{max-width:820px;padding:34px 0 0}
+.index h1{font-size:clamp(38px,5vw,60px);line-height:1.02;letter-spacing:-.03em;margin:0 0 12px}
+.index .standfirst{font-size:21px;color:#3B3558;margin:0 0 18px;max-width:54ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<script>document.documentElement.className+=" js"</script>
+<nav class="site" aria-label="Main">
+  <a class="brand" href="/" aria-label="Surety home">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#6E54FF"/><g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 13l15 6v12c0 10-6 16-15 19-9-3-15-9-15-19V19z"/><path d="M25 31l5 5 9-10"/></g></svg>
+    Surety
+  </a>
+  <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-menu"><span class="bars" aria-hidden="true"></span>Menu</button>
+  <ul id="site-menu"><li><a href="/how-it-works/">How it works</a></li><li><a href="/providers/">Providers</a></li><li><a href="/bond/">Bond your API</a></li><li><a href="/docs/">Docs</a></li><li><a href="/articles/" aria-current="page">Articles</a></li><li><a class="cta" href="/#demo">Run the demo</a></li></ul>
+</nav>
+<script>(function(){var n=document.querySelector("nav.site"),b=n.querySelector(".menu-btn");b.addEventListener("click",function(){var o=n.classList.toggle("open");b.setAttribute("aria-expanded",o?"true":"false")});n.querySelector("ul").addEventListener("click",function(e){if(e.target.tagName==="A"){n.classList.remove("open");b.setAttribute("aria-expanded","false")}})})();</script>
+<main>
+<article class="post">
+  <header>
+    <h1>Why AI agents need refunds, and why x402 alone doesn&#39;t give them one</h1>
+    <p class="standfirst">An x402 payment is final the moment it settles. Here is what that costs an agent when an API fails, and how a provider bond changes it.</p>
+    <p class="meta"><time datetime="2026-11-24">November 24, 2026</time>, 2 minute read</p>
+  </header>
+  <div class="prose">
+<p>An AI agent that pays for an API call with x402 is making a small act of faith. It signs a payment, the provider answers, and the payment settles on-chain. If the answer is late, malformed or simply wrong, the money has already moved.</p>
+<p>For a person buying one thing, that risk is tolerable. For an agent making thousands of small purchases a day from providers it has never used before, it adds up, and there is nobody to email.</p>
+<h2 id="what-goes-wrong-in-practice">What goes wrong in practice</h2>
+<p>Three failures cover most of it:</p>
+<ul>
+<li><strong>The answer is too slow.</strong> The agent has a deadline of its own. A price that arrives after the trade window is worth nothing.</li>
+<li><strong>The answer has the wrong shape.</strong> The agent expected a number and got an error message wrapped in a success code.</li>
+<li><strong>The answer is an error, but the payment went through anyway.</strong></li>
+</ul>
+<p>In each case the agent paid for something it did not get. Plain x402 has no step for giving the money back. The refund project x402r puts it directly: in standard x402 payments, once funds are sent, the client has no way to recover them if something goes wrong.</p>
+<h2 id="why-escrow-is-only-half-an-answer">Why escrow is only half an answer</h2>
+<p>One fix is escrow: hold the payment until the buyer is satisfied. That protects the single payment, and several projects are building it.</p>
+<p>It leaves a second question open. Before an agent pays at all, how does it tell a provider that usually delivers from one that usually doesn&#39;t? Escrow fixes a bad call after the fact. It says nothing in advance.</p>
+<h2 id="what-a-bond-adds">What a bond adds</h2>
+<p>Surety takes the other half. A provider puts up a bond and publishes what it promises: how fast it will answer, and what shape the answer will have. Every paid call is checked against that promise. A call that breaks it is refunded from the bond, automatically.</p>
+<p>That does two things at once. The agent gets its money back without asking anyone. And the bond is visible before the first call: how much is posted, how many refunds have come out of it, and whether the provider is trying to withdraw it. A provider with real money at stake and a clean record is easier to trust than one with a nice landing page.</p>
+<h2 id="where-this-stands">Where this stands</h2>
+<p>Surety runs on Monad testnet today, with test funds and one provider. It is not audited. You can <a href="/#demo">run a live call</a> and watch a refund happen, or read <a href="/articles/how-a-surety-bond-works/">how the bond works</a> step by step.</p>
+
+  </div>
+  <aside class="demo-cta"><p>Watch a refund happen on-chain, no wallet needed.</p><a href="/#demo">Run the live demo</a></aside>
+  <section class="more"><h2>Keep reading</h2><ul class="list"><li><a class="t" href="/articles/bond-your-x402-api/">How to bond your x402 API on Surety (testnet)</a><p>A walkthrough for API providers: write the SLA document, register on the vault, post a bond, and let agents call you through the relay.</p><small><time datetime="2026-11-24">November 24, 2026</time>, 2 minute read</small></li><li><a class="t" href="/articles/how-a-surety-bond-works/">How a Surety bond works, step by step</a><p>What a provider posts, what gets checked on every call, when the bond pays out, and the rules that stop a provider from dodging a claim.</p><small><time datetime="2026-11-24">November 24, 2026</time>, 2 minute read</small></li></ul></section>
+</article>
+</main>
+<footer class="site">
+  <div class="cols">
+    <p class="about"><strong>Surety</strong>Bond-backed refunds for AI agent payments. Running on Monad testnet with test funds only. Not audited.</p>
+    <div><h2>Product</h2><ul>
+      <li><a href="/#demo">Run the demo</a></li>
+      <li><a href="/how-it-works/">How it works</a></li>
+      <li><a href="/providers/">Provider directory</a></li>
+      <li><a href="/faq/">FAQ</a></li>
+    </ul></div>
+    <div><h2>Build</h2><ul>
+      <li><a href="/bond/">Bond your API</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/.well-known/surety.json">SLA document</a></li>
+      <li><a href="https://github.com/j-6-z/surety">Source on GitHub</a></li>
+    </ul></div>
+    <div><h2>Read</h2><ul>
+      <li><a href="/articles/">Articles</a></li>
+      <li><a href="/rss.xml">RSS feed</a></li>
+      <li><a href="https://github.com/j-6-z/surety/blob/main/LICENSE">MIT licence</a></li>
+    </ul></div>
+  </div>
+  <p class="vault">Vault on Monad testnet <span class="mono">0xf3F9e32De47a143149F7398f25f264b98a01273C</span></p>
+</footer>
+</div>
+</body>
+</html>

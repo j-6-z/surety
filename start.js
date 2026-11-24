@@ -12,6 +12,19 @@ const { ethers } = require("ethers");
 const { createRelay } = require("./verifier/relay");
 const { createMarketApi } = require("./marketdata/server");
 const { createPriceReader, MONAD_MAINNET } = require("./marketdata/prices");
+const { createDemo } = require("./demo");
+const { createCronPublish } = require("./site/cron");
+const { directoryPage, notFoundPage } = require("./site/directory");
+const { bondPage } = require("./site/bond-page");
+const { createBondApi } = require("./site/bond-api");
+
+// Written by scripts/generate.js. Missing on a fresh checkout that hasn't been built yet.
+let schedule = { scheduled: [] };
+try {
+  schedule = require("./site/schedule.json");
+} catch {
+  /* nothing scheduled */
+}
 
 const VAULT_ABI = [
   "function arbiter() view returns (address)",
@@ -36,17 +49,86 @@ function buildSuretyApp(c) {
   const api = createMarketApi({
     reader: c.reader, network: c.network, usdc: c.usdcAddress, payTo,
     facilitatorUrl: c.facilitatorUrl, price: c.price, publicUrl: c.publicUrl,
+    landing: { provider: c.wallet.address, vaultAddress: c.vaultAddress, ...(c.repoUrl ? { repoUrl: c.repoUrl } : {}) },
+    demo: c.demo === false ? undefined : { ...c.demo },
   });
   const relay = createRelay({
     vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, signer: c.wallet,
     dataDir: c.dataDir, allowInsecure: c.allowInsecure,
+    skipStats: (addr, p) => addr === c.wallet.address && p === "/v1/demo/slow",
   });
   const app = express();
   app.disable("x-powered-by");
   app.use((req, res, next) =>
     req.url.startsWith("/call/") || req.url.startsWith("/trust/") ? relay.handle(req, res) : next()
   );
+  if (c.demo !== false) {
+    const demo = createDemo({
+      wallet: c.wallet, vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, network: c.network,
+      publicUrl: c.publicUrl, explorer: c.explorer, ...c.demo,
+    });
+    app.post("/demo/run", demo.handleRun);
+    app.get("/demo/last", demo.handleLast);
+  }
+  // ---- provider directory: our own provider, any listed in settings, and any the relay has served
+  const page = { url: c.publicUrl, vaultAddress: c.vaultAddress, ...(c.repoUrl ? { repoUrl: c.repoUrl } : {}) };
+  const html = (res, body, status = 200) =>
+    res.status(status).type("html").set("cache-control", "public, max-age=0, s-maxage=300, stale-while-revalidate=86400").send(body);
+  const announced = new Set(); // providers that listed themselves through the bond page
+  let directory = { at: 0, body: null };
+  async function listProviders() {
+    if (directory.body && Date.now() - directory.at < 15_000) return directory.body;
+    const addrs = [...new Set([c.wallet.address, ...(c.directory || []), ...announced, ...relay.known()].map((a) => ethers.getAddress(a)))];
+    const providers = (
+      await Promise.all(
+        addrs.map(async (addr) => {
+          try {
+            const [t, sla] = await Promise.all([relay.trust(addr), relay.sla(addr).catch(() => null)]);
+            return {
+              ...t,
+              host: sla ? new URL(sla.baseUrl).host : null,
+              endpoints: sla ? sla.endpoints.filter((e) => !e.path.startsWith("/v1/demo/")).map((e) => ({ method: e.method, path: e.path, maxLatencyMs: e.maxLatencyMs })) : [],
+            };
+          } catch {
+            return null; // not registered, or the chain could not be read
+          }
+        })
+      )
+    ).filter(Boolean).sort((a, b) => Number(b.active) - Number(a.active) || b.score - a.score);
+    directory = { at: Date.now(), body: { providers } };
+    return directory.body;
+  }
+  app.get("/providers.json", async (_req, res) => {
+    try {
+      res.set("cache-control", "public, max-age=10").json(await listProviders());
+    } catch (e) {
+      res.status(502).json({ error: "could not read the vault" });
+    }
+  });
+  app.get("/providers", (_req, res) => html(res, directoryPage(page)));
+
+  // ---- self-serve bonding
+  const chainId = Number(String(c.network).split(":")[1]);
+  const bondApi = createBondApi({
+    provider: c.wallet.provider, vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, chainId,
+    allowInsecure: c.allowInsecure,
+    onSeen: (addr) => { if (announced.size < 500) announced.add(addr); directory.at = 0; },
+  });
+  app.get("/bond/sla-check", bondApi.slaCheck);
+  app.get("/bond/account", bondApi.account);
+  app.get("/bond/tx", bondApi.tx);
+  app.get("/bond", (_req, res) => html(res, bondPage({ ...page, usdcAddress: c.usdcAddress, chainId, explorer: c.explorer })));
+
+  app.get("/cron/publish", createCronPublish({ schedule }));
+  // Generated pages (articles, sitemap, robots). Vercel serves public/ itself; this is for other hosts.
+  app.use(express.static(path.join(__dirname, "public")));
   app.use(api.app);
+  // Anything left over: a readable page for browsers, plain JSON for programs.
+  app.use((req, res) =>
+    req.accepts(["json", "html"]) === "html"
+      ? res.status(404).type("html").send(notFoundPage(page))
+      : res.status(404).json({ error: "not_found" })
+  );
   return { app, payTo, slaUrl: `${c.publicUrl}/.well-known/surety.json` };
 }
 
@@ -120,6 +202,8 @@ function configFromEnv(env = process.env) {
     publicUrl,
     payTo: env.PAY_TO_ADDRESS || undefined,
     price: env.API_PRICE || "$0.001",
+    repoUrl: env.REPO_URL || undefined,
+    directory: (env.DIRECTORY_PROVIDERS || "").split(",").map((a) => a.trim()).filter((a) => ethers.isAddress(a)),
     // Serverless hosts only allow writes under the temp folder.
     dataDir: env.DATA_DIR || (env.VERCEL ? path.join(os.tmpdir(), "surety") : undefined),
     allowInsecure: !publicUrl, // only when running locally with no public address

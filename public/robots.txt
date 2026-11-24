@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /call/
+Disallow: /trust/
+Disallow: /demo/
+
+Sitemap: https://www.surety.buzz/sitemap.xml

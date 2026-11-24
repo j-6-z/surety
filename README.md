@@ -48,7 +48,7 @@ Needs Node 18 or newer. Everything runs on a local chain, with no wallet or netw
 
 ```bash
 npm install
-npm test          # 58 tests
+npm test          # 62 tests
 npm run demo      # one healthy call, two refunded ones
 ```
 
@@ -67,6 +67,7 @@ npm run demo      # one healthy call, two refunded ones
 | `marketdata/` | Surety Market Data API: the first bonded provider (see below) |
 | `examples/` | A real x402-paid API and paying client (official x402 SDK), plus mocks for tests |
 | `app.js`, `start.js` | Hosting entry points: Vercel, and an always-on server |
+| `site/`, `content/`, `public/` | Shared nav, footer and theme; article sources; generated pages |
 | `scripts/` | Deploy, local demo, testnet and API checks, host registration, gas and latency measurements |
 | `test/` | Contract tests, a randomised invariant test, and end-to-end tests through the relay |
 
@@ -149,6 +150,20 @@ That checks the deployment and points your on-chain provider record at it.
 **An always-on server** (Render, Railway, a VPS). `npm start` listens on `PORT` and registers itself at boot. `render.yaml` is a ready blueprint; set `VAULT_ADDRESS` and `PRIVATE_KEY` in the host's dashboard.
 
 Either way, `PRIVATE_KEY` is a testnet-only wallet that is the vault's arbiter and the provider. Set it in the host's dashboard, never in a file.
+
+**The homepage and its demo.** A browser opening the address gets a homepage whose main feature is a live demo: two buttons that each run a real paid call through the relay, paid by the server's own wallet. One buys the price and passes. The other calls `/v1/demo/slow`, an endpoint built to miss its promise, so visitors watch the bond refund it on-chain. (`demo.js`, `marketdata/landing.js`.)
+
+Each demo run spends real testnet funds from the server wallet: $0.001 per call, plus a 5% fee from the bond on each refund. To keep that in check, fresh runs are spaced out (8 seconds for the good call, 45 for the slow one), capped per day, and the slow demo stops before the bond gets within 0.01 USDC of its minimum. When a limit is hit, the page shows the most recent run and says so. Top up the wallet's test USDC and the bond now and then.
+
+**Articles and search.** `npm run build` (`scripts/generate.js`) turns the Markdown files in `content/articles/` into pages under `public/articles/`, and writes `sitemap.xml`, `rss.xml` and `robots.txt`. Every page gets a canonical link, link-preview tags and schema.org data. Vercel runs it on each deploy. To publish, add a `.md` file with a `title`, `description` and `date` header and push. `draft: true` keeps a file out.
+
+An article dated in the future is held back until that day. A daily job (`/cron/publish`, set up in `vercel.json`) triggers a rebuild when one comes due. It needs two settings on the host: `CRON_SECRET` (any long random string) and `DEPLOY_HOOK_URL` (a Vercel Deploy Hook). Without them the job does nothing.
+
+**Self-serve bonding.** `/bond/` lets a provider list an API and post its bond from the browser with their own wallet: check the SLA document, connect, list, bond, and later queue a withdrawal. The page loads no crypto library. The server validates the SLA, reads the account from the chain and builds each transaction (`site/bond-api.js`); the wallet only signs. The homepage also has a provider lookup that shows any provider's record and the address agents should call.
+
+Standing pages (How it works, Docs, FAQ) are Markdown files in `content/pages/` and build the same way; the FAQ also emits question-and-answer data for search engines. The provider directory at `/providers/` is live: it lists this server's own provider, any address in the `DIRECTORY_PROVIDERS` setting (comma-separated), and any provider the relay has served, each with its record read from the vault.
+
+The shared navigation (with a collapsing menu on phones), footer and page head live in `site/`.
 
 Things to know:
 

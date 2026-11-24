@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>Surety articles</title>
+  <link>https://www.surety.buzz/articles/</link>
+  <description>Writing on x402 payments, refunds and provider bonds.</description>
+  <language>en</language>
+  <atom:link href="https://www.surety.buzz/rss.xml" rel="self" type="application/rss+xml"/>
+  <item>
+    <title>How to bond your x402 API on Surety (testnet)</title>
+    <link>https://www.surety.buzz/articles/bond-your-x402-api/</link>
+    <guid isPermaLink="true">https://www.surety.buzz/articles/bond-your-x402-api/</guid>
+    <pubDate>Tue, 24 Nov 2026 12:00:00 GMT</pubDate>
+    <description>A walkthrough for API providers: write the SLA document, register on the vault, post a bond, and let agents call you through the relay.</description>
+  </item>
+  <item>
+    <title>How a Surety bond works, step by step</title>
+    <link>https://www.surety.buzz/articles/how-a-surety-bond-works/</link>
+    <guid isPermaLink="true">https://www.surety.buzz/articles/how-a-surety-bond-works/</guid>
+    <pubDate>Tue, 24 Nov 2026 12:00:00 GMT</pubDate>
+    <description>What a provider posts, what gets checked on every call, when the bond pays out, and the rules that stop a provider from dodging a claim.</description>
+  </item>
+  <item>
+    <title>Why AI agents need refunds, and why x402 alone doesn&apos;t give them one</title>
+    <link>https://www.surety.buzz/articles/why-agents-need-refunds/</link>
+    <guid isPermaLink="true">https://www.surety.buzz/articles/why-agents-need-refunds/</guid>
+    <pubDate>Tue, 24 Nov 2026 12:00:00 GMT</pubDate>
+    <description>An x402 payment is final the moment it settles. Here is what that costs an agent when an API fails, and how a provider bond changes it.</description>
+  </item>
+</channel>
+</rss>

@@ -206,7 +206,7 @@ describe("Market Data API", function () {
 describe("start.js: relay and API on one port", function () {
   this.timeout(60_000);
 
-  it("registers itself, serves the API and relays a paid call from a separate agent wallet", async () => {
+  it("registers itself, relays a paid call from a separate wallet, and runs the homepage demo", async () => {
     const { startSurety } = require("../start");
     const T = await ethers.getContractFactory("MockToken");
     const wmon = await T.deploy("Wrapped MON", "WMON", 18);
@@ -231,7 +231,10 @@ describe("start.js: relay and API on one port", function () {
     );
     const { chainId } = await ethers.provider.getNetwork();
     const network = `eip155:${chainId}`;
-    const facilitator = await startFakeFacilitator({ usdc: payUsdc, network, wallets: { [agent.address.toLowerCase()]: agent } });
+    const facilitator = await startFakeFacilitator({
+      usdc: payUsdc, network,
+      wallets: { [agent.address.toLowerCase()]: agent, [operator.address.toLowerCase()]: operator },
+    });
     const lines = [];
     const s = await startSurety({
       wallet: operator, vaultAddress: await vault.getAddress(), usdcAddress: payAddr, network,
@@ -241,6 +244,7 @@ describe("start.js: relay and API on one port", function () {
         wmon: await wmon.getAddress(), usdc: await dataUsdc.getAddress(),
       }),
       host: "127.0.0.1", allowInsecure: true, log: (m) => lines.push(m),
+      demo: { slowMs: 300, promiseMs: 100, cooldownMs: { good: 60_000, slow: 60_000 } },
       dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "surety-start-")),
     });
     try {
@@ -259,6 +263,95 @@ describe("start.js: relay and API on one port", function () {
       expect(before - (await payUsdc.balanceOf(agent.address))).to.equal(usd(0.001));
       expect(await payUsdc.balanceOf(s.payTo)).to.equal(usd(0.001)); // paid to a different address than the agent
       expect((await client.trust(s.provider)).active).to.equal(true);
+
+      // The homepage demo: real paid calls made by the server's own wallet.
+      const demo = async (kind) => {
+        const res = await fetch(`${s.url}/demo/run?kind=${kind}`, { method: "POST" });
+        return { http: res.status, ...(await res.json()) };
+      };
+      const good = await demo("good");
+      expect(good.verdict).to.equal("pass");
+      expect(good.data.priceUsd).to.be.closeTo(0.0117, 1e-7);
+      expect(good.paymentTx).to.match(/^0x[0-9a-f]{64}$/);
+      expect(good.refund).to.equal(null);
+
+      const bondBefore = (await vault.providers(operator.address)).bond;
+      const slow = await demo("slow");
+      expect(slow.verdict).to.equal("fail");
+      expect(slow.reason).to.equal("too_slow");
+      expect(slow.promisedMs).to.equal(100);
+      expect(slow.refund.payout).to.equal(usd(0.001).toString());
+      expect(await vault.claimPaid(ethers.solidityPackedKeccak256(["uint256", "bytes32"], [chainId, slow.paymentTx]))).to.equal(true);
+      expect(bondBefore - (await vault.providers(operator.address)).bond).to.equal(usd(0.00105)); // refund + 5% fee
+
+      const again = await demo("slow"); // inside the cooldown: no second refund
+      expect(again.replay).to.equal(true);
+      expect(again.refund.tx).to.equal(slow.refund.tx);
+      expect((await vault.providers(operator.address)).claimCount).to.equal(1n);
+      expect((await demo("nope")).http).to.equal(400);
+      const lastRuns = await (await fetch(`${s.url}/demo/last`)).json();
+      expect(lastRuns.good.verdict).to.equal("pass");
+      expect(lastRuns.slow.verdict).to.equal("fail");
+      const t = await client.trust(s.provider);
+      expect(t.calls).to.equal(2); // the agent's call and the good demo; the slow demo is not counted
+      expect(t.passRate).to.equal(1);
+
+      // Provider directory, and what an unknown address gets.
+      const dir = await (await fetch(`${s.url}/providers.json`)).json();
+      expect(dir.providers).to.have.length(1);
+      expect(dir.providers[0].provider).to.equal(operator.address);
+      expect(dir.providers[0].active).to.equal(true);
+      expect(dir.providers[0].host).to.equal(new URL(s.url).host);
+      expect(dir.providers[0].endpoints.map((e) => e.path)).to.deep.equal(["/v1/price/mon", "/v1/pool/:address"]); // demo endpoint left out
+      const dirPage = await fetch(`${s.url}/providers/`, { headers: { accept: "text/html" } });
+      expect(dirPage.status).to.equal(200);
+      expect(await dirPage.text()).to.contain("Provider directory").and.to.contain('aria-current="page"');
+      // Self-serve bonding: a brand-new provider lists and bonds using only what the page's server routes return.
+      const j = async (p) => { const r = await fetch(s.url + p); return { http: r.status, ...(await r.json()) }; };
+      const bondHtml = await fetch(`${s.url}/bond/`, { headers: { accept: "text/html" } });
+      expect(await bondHtml.text()).to.contain("Bond your API").and.to.contain(await vault.getAddress());
+      const slaUrl = `${s.url}/.well-known/surety.json`;
+      const check = await j(`/bond/sla-check?url=${encodeURIComponent(slaUrl)}`);
+      expect(check.ok).to.equal(true);
+      expect(check.endpoints[0]).to.deep.include({ method: "GET", path: "/v1/price/mon", checksShape: true });
+      expect((await j(`/bond/sla-check?url=${encodeURIComponent(s.url + "/health")}`)).ok).to.equal(false); // JSON, but not an SLA
+      expect((await j("/bond/sla-check?url=ftp://x")).ok).to.equal(false);
+      expect((await j("/bond/tx?kind=deposit&amount=1.5")).http).to.equal(400);
+      expect((await j("/bond/tx?kind=register&url=javascript:alert(1)")).http).to.equal(400);
+      expect((await j("/bond/tx?kind=drain")).http).to.equal(400);
+      expect((await j("/bond/account?address=nope")).http).to.equal(400);
+
+      const newcomer = ethers.Wallet.createRandom().connect(ethers.provider);
+      await ethers.provider.send("hardhat_setBalance", [newcomer.address, "0x56BC75E2D63100000"]);
+      await payUsdc.mint(newcomer.address, usd(2));
+      const fresh = await j(`/bond/account?address=${newcomer.address}`);
+      expect(fresh).to.include({ registered: false, active: false, usdcBalance: usd(2).toString(), minBond: usd(0.5).toString() });
+      const sign = async (path) => {
+        const tx = await j(path);
+        expect(tx.ok, path).to.equal(true);
+        await (await newcomer.sendTransaction({ to: tx.to, data: tx.data })).wait(); // what the wallet does in the browser
+        return tx;
+      };
+      await sign(`/bond/tx?kind=register&url=${encodeURIComponent(slaUrl)}`);
+      const approve = await sign(`/bond/tx?kind=approve&amount=${usd(0.6)}`);
+      expect(approve.to).to.equal(payAddr); // the approval goes to the token, for exactly the amount asked
+      expect(await payUsdc.allowance(newcomer.address, await vault.getAddress())).to.equal(usd(0.6));
+      await sign(`/bond/tx?kind=deposit&amount=${usd(0.6)}`);
+      const afterBond = await j(`/bond/account?address=${newcomer.address}`);
+      expect(afterBond).to.include({ registered: true, active: true, bond: usd(0.6).toString(), metadataURI: slaUrl });
+      const dir2 = await j("/providers.json");
+      expect(dir2.providers.map((p) => p.provider)).to.include(newcomer.address); // shows up in the directory
+      await sign(`/bond/tx?kind=withdraw&amount=${usd(0.2)}`);
+      expect((await j(`/bond/account?address=${newcomer.address}`)).active).to.equal(false); // queued exit drops coverage at once
+      await sign("/bond/tx?kind=cancelWithdraw");
+      expect((await j(`/bond/account?address=${newcomer.address}`)).active).to.equal(true);
+
+      const missing = await fetch(`${s.url}/no-such-page`, { headers: { accept: "text/html" } });
+      expect(missing.status).to.equal(404);
+      expect(await missing.text()).to.contain("That page doesn't exist.");
+      const missingJson = await fetch(`${s.url}/no-such-page`, { headers: { accept: "application/json" } });
+      expect(missingJson.status).to.equal(404);
+      expect((await missingJson.json()).error).to.equal("not_found");
     } finally {
       await s.close();
       await new Promise((r) => facilitator.close(r));
@@ -304,5 +397,121 @@ describe("app.js (Vercel entry point)", () => {
     const sla = (await serve(app, "/.well-known/surety.json")).body;
     expect(sla.baseUrl).to.equal("https://surety.example");
     expect((await serve(app, "/trust/not-an-address")).status).to.equal(400); // relay routes are mounted
+  });
+});
+
+describe("homepage", () => {
+  it("gives browsers a page and agents JSON from the same address", async () => {
+    const { buildSuretyApp } = require("../start");
+    const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
+    const vaultAddress = ethers.Wallet.createRandom().address;
+    const { app } = buildSuretyApp({
+      wallet, vaultAddress, usdcAddress: ethers.ZeroAddress, network: "eip155:31337",
+      facilitatorUrl: "http://127.0.0.1:9", reader: {}, publicUrl: "https://surety.example", dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "surety-home-")),
+    });
+    const server = require("http").createServer(app);
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    const base = `http://127.0.0.1:${server.address().port}/`;
+    try {
+      const html = await fetch(base, { headers: { accept: "text/html,application/xhtml+xml,*/*;q=0.8" } });
+      expect(html.headers.get("content-type")).to.contain("text/html");
+      const page = await html.text();
+      expect(page).to.contain("Your agent shouldn't pay for garbage.");
+      expect(page).to.contain(wallet.address).and.to.contain(vaultAddress);
+      expect(page).to.contain(`/trust/${wallet.address}`);
+      expect(page).to.not.contain("undefined");
+      const json = await fetch(base, { headers: { accept: "application/json" } });
+      expect((await json.json()).name).to.equal("Surety Market Data API");
+      expect((await (await fetch(base)).json()).endpoints).to.have.length(2); // no Accept header: JSON
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  });
+});
+
+describe("site generator and scheduled publishing", () => {
+  const { build } = require("../scripts/generate");
+  const { createCronPublish } = require("../site/cron");
+  const md = (title, date, extra = "") => `---\ntitle: ${title}\ndescription: About ${title}.\ndate: ${date}\n${extra}---\n\n## Heading\n\nBody of ${title} with a [link](/#demo).\n`;
+
+  it("builds article pages with search tags, a list, sitemap, feed and robots; holds back drafts and future dates", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "surety-gen-"));
+    const src = path.join(dir, "content"), out = path.join(dir, "public"), scheduleFile = path.join(dir, "schedule.json");
+    const pagesSrc = path.join(dir, "pages");
+    fs.mkdirSync(src);
+    fs.mkdirSync(pagesSrc);
+    fs.writeFileSync(path.join(pagesSrc, "faq.md"), "---\ntitle: Questions\ndescription: Answers.\nnav: faq\ntype: faq\n---\n\n## Is it real?\n\nNo, it is a **test**.\n\n## Who runs it?\n\nOne person.\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n");
+    fs.writeFileSync(path.join(src, "older-post.md"), md("Older post", "2026-01-05"));
+    fs.writeFileSync(path.join(src, "newer-post.md"), md("Newer <post> & more", "2026-02-10"));
+    fs.writeFileSync(path.join(src, "a-draft.md"), md("A draft", "2026-02-01", "draft: true\n"));
+    fs.writeFileSync(path.join(src, "next-month.md"), md("Next month", "2026-03-20"));
+    fs.mkdirSync(path.join(out, "articles", "deleted-post"), { recursive: true }); // stale output from a removed article
+    fs.writeFileSync(path.join(out, "articles", "deleted-post", "index.html"), "old");
+
+    const r = build({ src, out, scheduleFile, pagesSrc, today: "2026-02-15", log: () => {} });
+    const faq = fs.readFileSync(path.join(out, "faq", "index.html"), "utf8");
+    expect(faq).to.contain('"@type":"FAQPage"').and.to.contain('"name":"Is it real?"').and.to.contain('"text":"No, it is a test."');
+    expect(faq).to.contain('<div class="tbl"><table>'); // wide tables scroll inside their own box on phones
+    expect(faq).to.contain('href="/faq/"').and.to.contain('href="/bond/"'); // shared nav and footer
+    expect(fs.readFileSync(path.join(out, "sitemap.xml"), "utf8")).to.contain("<loc>https://www.surety.buzz/faq/</loc>");
+    expect(r.published.map((a) => a.slug)).to.deep.equal(["newer-post", "older-post"]); // newest first
+    expect(r.scheduled).to.deep.equal([{ slug: "next-month", date: "2026-03-20" }]);
+    expect(JSON.parse(fs.readFileSync(scheduleFile, "utf8")).scheduled).to.have.length(1);
+    for (const gone of ["a-draft", "next-month", "deleted-post"]) {
+      expect(fs.existsSync(path.join(out, "articles", gone)), gone).to.equal(false);
+    }
+
+    const page = fs.readFileSync(path.join(out, "articles", "newer-post", "index.html"), "utf8");
+    expect(page).to.contain("<title>Newer &lt;post&gt; &amp; more | Surety</title>"); // escaped
+    expect(page).to.contain('<link rel="canonical" href="https://www.surety.buzz/articles/newer-post/">');
+    expect(page).to.contain('property="og:type" content="article"').and.to.contain('"@type":"Article"');
+    expect(page).to.contain('<nav class="site"').and.to.contain('<footer class="site"');
+    expect(page).to.contain('<h2 id="heading">Heading</h2>').and.to.contain("Keep reading"); // headings are linkable
+    expect(page).to.not.contain("undefined");
+
+    const list = fs.readFileSync(path.join(out, "articles", "index.html"), "utf8");
+    expect(list.indexOf("Newer")).to.be.lessThan(list.indexOf("Older post"));
+    const map = fs.readFileSync(path.join(out, "sitemap.xml"), "utf8");
+    expect(map).to.contain("<loc>https://www.surety.buzz/</loc>").and.to.contain("/articles/older-post/");
+    expect(map).to.not.contain("next-month");
+    expect(fs.readFileSync(path.join(out, "rss.xml"), "utf8")).to.contain("<title>Newer &lt;post&gt; &amp; more</title>");
+    expect(fs.readFileSync(path.join(out, "robots.txt"), "utf8")).to.contain("Sitemap: https://www.surety.buzz/sitemap.xml");
+  });
+
+  it("rejects an article with a bad header instead of publishing it broken", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "surety-gen-bad-"));
+    const src = path.join(dir, "content");
+    fs.mkdirSync(src);
+    fs.writeFileSync(path.join(src, "no-date.md"), "---\ntitle: T\ndescription: D\n---\nbody");
+    const opts = { out: path.join(dir, "public"), scheduleFile: path.join(dir, "s.json"), pagesSrc: path.join(dir, "pages"), log: () => {} };
+    expect(() => build({ src, ...opts })).to.throw(/needs "date"/);
+    fs.rmSync(path.join(src, "no-date.md"));
+    fs.mkdirSync(opts.pagesSrc);
+    fs.writeFileSync(path.join(opts.pagesSrc, "providers.md"), "---\ntitle: T\ndescription: D\n---\nbody");
+    expect(() => build({ src, ...opts })).to.throw(/already in use/); // a page can't shadow a live route
+  });
+
+  it("the daily job rebuilds only when an article is due, and only for the real scheduler", async () => {
+    const call = async (opts, auth) => {
+      let out;
+      const res = { status(c) { out = { status: c }; return this; }, set() { return this; }, json(b) { out.body = b; } };
+      await createCronPublish(opts)({ headers: auth ? { authorization: auth } : {} }, res);
+      return out;
+    };
+    const schedule = { scheduled: [{ slug: "next-month", date: "2026-03-20" }] };
+    const hits = [];
+    const hook = async (url, init) => { hits.push([url, init.method]); return { ok: true, status: 201 }; };
+    const env = { CRON_SECRET: "s3cret", DEPLOY_HOOK_URL: "https://hook.example/x" };
+
+    expect((await call({ schedule, env: {}, fetch: hook })).status).to.equal(503); // not configured
+    expect((await call({ schedule, env, fetch: hook }, "Bearer wrong")).status).to.equal(401);
+    const early = await call({ schedule, env, fetch: hook, today: () => "2026-03-19" }, "Bearer s3cret");
+    expect(early.body).to.deep.equal({ ok: true, due: 0, waiting: 1 });
+    expect(hits).to.have.length(0);
+    const onDay = await call({ schedule, env, fetch: hook, today: () => "2026-03-20" }, "Bearer s3cret");
+    expect(onDay.body.rebuilding).to.equal(true);
+    expect(hits).to.deep.equal([["https://hook.example/x", "POST"]]);
+    const noHook = await call({ schedule, env: { CRON_SECRET: "s3cret" }, fetch: hook, today: () => "2026-03-20" }, "Bearer s3cret");
+    expect(noHook.status).to.equal(500);
   });
 });

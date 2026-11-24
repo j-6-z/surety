@@ -10,6 +10,7 @@ const { paymentMiddleware, x402ResourceServer } = require("@x402/express");
 const { HTTPFacilitatorClient } = require("@x402/core/server");
 const { ExactEvmScheme } = require("@x402/evm/exact/server");
 const { createPriceReader, MONAD_MAINNET } = require("./prices");
+const { landingPage } = require("./landing");
 
 const PRICE_SCHEMA = {
   type: "object",
@@ -44,6 +45,10 @@ const POOL_SCHEMA = {
  * @param {string} [o.price]          per call, e.g. "$0.001"
  * @param {number} [o.maxLatencyMs]   what the SLA promises (includes payment settlement time)
  * @param {string} [o.publicUrl]      where the API is reachable; defaults to the local address
+ * @param {{slowMs?: number, promiseMs?: number}} [o.demo]
+ *        when set, adds GET /v1/demo/slow: a paid endpoint built to miss its promise, for the homepage demo
+ * @param {{provider: string, vaultAddress: string, repoUrl?: string}} [o.landing]
+ *        when set, browsers get a homepage at "/" (agents asking for JSON still get JSON)
  */
 function createMarketApi(o) {
   const price = o.price || "$0.001";
@@ -70,21 +75,28 @@ function createMarketApi(o) {
     endpoints: [
       { method: "GET", path: "/v1/price/mon", maxLatencyMs, responseSchema: PRICE_SCHEMA },
       { method: "GET", path: "/v1/pool/:address", maxLatencyMs, responseSchema: POOL_SCHEMA },
+      ...(o.demo ? [{ method: "GET", path: "/v1/demo/slow", maxLatencyMs: o.demo.promiseMs ?? 500 }] : []),
     ],
   });
 
   const app = express();
   app.disable("x-powered-by");
-  app.get("/", (_req, res) =>
-    res.json({
+  app.get("/", (req, res) => {
+    if (o.landing && req.accepts(["json", "html"]) === "html") {
+      res.set("cache-control", "public, max-age=0, s-maxage=300, stale-while-revalidate=86400").vary("Accept");
+      return res.type("html").send(
+        landingPage({ url: baseUrl, price, repoUrl: "https://github.com/j-6-z/surety", ...o.landing })
+      );
+    }
+    res.vary("Accept").json({
       name: "Surety Market Data API",
       description: "Monad prices read on-chain, pay per call with x402. Bonded on Surety.",
       pricePerCall: price,
       paymentNetwork: o.network,
       endpoints: ["GET /v1/price/mon", "GET /v1/pool/:address"],
       sla: `${baseUrl}/.well-known/surety.json`,
-    })
-  );
+    });
+  });
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.get("/.well-known/surety.json", (_req, res) => res.json(sla()));
 
@@ -94,7 +106,11 @@ function createMarketApi(o) {
   );
   app.use(
     paymentMiddleware(
-      { "GET /v1/price/mon": paid("MON price in USD, on-chain"), "GET /v1/pool/:address": paid("Pool price and reserves, on-chain") },
+      {
+        "GET /v1/price/mon": paid("MON price in USD, on-chain"),
+        "GET /v1/pool/:address": paid("Pool price and reserves, on-chain"),
+        ...(o.demo ? { "GET /v1/demo/slow": paid("Demo: deliberately slower than its promise") } : {}),
+      },
       x402
     )
   );
@@ -109,6 +125,11 @@ function createMarketApi(o) {
   };
   app.get("/v1/price/mon", handle(() => o.reader.monPrice()));
   app.get("/v1/pool/:address", handle((req) => o.reader.readPool(req.params.address)));
+  if (o.demo) {
+    app.get("/v1/demo/slow", (_req, res) =>
+      setTimeout(() => res.json({ demo: true, note: "This endpoint is slow on purpose." }), o.demo.slowMs ?? 1200)
+    );
+  }
 
   let httpServer;
   const listen = (port = 0) =>
