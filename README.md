@@ -8,9 +8,29 @@ An API provider posts a USDC bond. Agents call the provider through the Surety r
 
 | | |
 | --- | --- |
+| Live at | https://www.surety.buzz |
 | Network | Monad Testnet (chain ID 10143) |
 | SuretyVault | `0xf3F9e32De47a143149F7398f25f264b98a01273C` |
 | Settlement asset | Testnet USDC `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
+| First bonded provider | `0xbef73fc59e4FF99cB3395Ab0afe8CBD35C598292` (Surety Market Data API) |
+
+## Try it in two minutes
+
+You need Node 18+ and any wallet holding a little Monad testnet USDC (free from https://faucet.circle.com). The call costs $0.001 and needs no gas.
+
+```bash
+git clone https://github.com/j-6-z/surety.git && cd surety
+npm install --omit=dev
+AGENT_KEY=0xYourTestnetKey node examples/call-api.js https://www.surety.buzz 0xbef73fc59e4FF99cB3395Ab0afe8CBD35C598292
+```
+
+On Windows PowerShell, set the key first with `$env:AGENT_KEY="0xYourTestnetKey"`.
+
+You get the live MON price, read on-chain, with a verdict from the relay. If the call had come back slow or malformed, the provider's bond would have refunded you. No key at hand? These are free:
+
+- https://www.surety.buzz/ describes the API
+- https://www.surety.buzz/.well-known/surety.json is the SLA the provider is bonded against
+- https://www.surety.buzz/trust/0xbef73fc59e4FF99cB3395Ab0afe8CBD35C598292 is its trust score
 
 ## How it works
 

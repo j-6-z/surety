@@ -15,7 +15,17 @@ if (!/^https:\/\//.test(url) || !PRIVATE_KEY || !VAULT_ADDRESS) {
 
 (async () => {
   for (const [name, path] of [["health", "/health"], ["SLA", "/.well-known/surety.json"]]) {
-    const res = await fetch(url + path);
+    const res = await fetch(url + path, { redirect: "manual" }).catch((e) => {
+      const code = e.cause?.code || e.cause?.message || e.message;
+      const hint =
+        code === "ENOTFOUND" ? "The domain does not resolve yet. Check its DNS records at your registrar, then wait a few minutes."
+        : /CERT|SSL|TLS/i.test(String(code)) ? "The https certificate is not ready yet. Give the host a few minutes."
+        : "The server could not be reached.";
+      throw new Error(`could not reach ${url + path} (${code}). ${hint}`);
+    });
+    if (res.status >= 300 && res.status < 400) {
+      throw new Error(`${url} redirects to ${res.headers.get("location")}. Use the address it redirects to, and set PUBLIC_URL to that same address.`);
+    }
     if (!res.ok) throw new Error(`${name} check failed: ${url + path} answered ${res.status} ${(await res.text()).slice(0, 200)}`);
     if (name === "SLA") {
       const sla = await res.json();
