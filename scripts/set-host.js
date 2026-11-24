@@ -1,9 +1,11 @@
 // Point your on-chain provider record at a hosted Surety server. Run once after
 // deploying (and again if the address changes):
 //   node scripts/set-host.js https://your-domain.example
+// PRIVATE_KEY in .env must be the PROVIDER wallet. For mainnet, set SURETY_NETWORK=mainnet in .env first.
 require("dotenv").config();
 const { ethers } = require("ethers");
 const { pointProviderAt } = require("../start");
+const net = require("../networks").networkFromEnv(); // testnet unless SURETY_NETWORK=mainnet
 
 let url = (process.argv[2] || "").trim().replace(/\/+$/, "");
 if (url && !/^https?:\/\//.test(url)) url = `https://${url}`; // "my-app.vercel.app" is fine too
@@ -34,7 +36,8 @@ if (!/^https:\/\//.test(url) || !PRIVATE_KEY || !VAULT_ADDRESS) {
     console.log(`  ${name} check passed`);
   }
   const key = PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`;
-  const wallet = new ethers.Wallet(key, new ethers.JsonRpcProvider(process.env.MONAD_TESTNET_RPC || "https://testnet-rpc.monad.xyz"));
+  const wallet = new ethers.Wallet(key, new ethers.JsonRpcProvider(net.rpc));
+  console.log(`Network: ${net.fullName}`);
   await pointProviderAt(wallet, VAULT_ADDRESS, `${url}/.well-known/surety.json`);
   console.log(`\nAgents call:  ${url}/call/${wallet.address}/v1/price/mon`);
   console.log(`Try it:       AGENT_KEY=0x... node examples/call-api.js ${url} ${wallet.address}`);

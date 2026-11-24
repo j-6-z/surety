@@ -15,7 +15,8 @@ if (!host || !provider || !agentKey) {
   console.error("Usage: AGENT_KEY=0x... node examples/guarded-agent.js https://<surety-host> <providerAddress> [calls]");
   process.exit(1);
 }
-const USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3"; // Monad testnet USDC
+const net = require("../networks").networkFromEnv(); // testnet unless SURETY_NETWORK=mainnet
+const USDC = net.usdc;
 
 (async () => {
   const guard = createGuard({
@@ -24,9 +25,10 @@ const USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3"; // Monad testnet USDC
     dailyBudget: "0.005",   // and no more than this per day, after refunds
     bondedOnly: true,       // only providers whose calls are covered right now
     minTrustScore: 20,
+    token: USDC,
     logFile: path.join(__dirname, "..", "data", "spend-log.jsonl"),
   });
-  const agent = createPayingFetch(agentKey, "eip155:10143", USDC, "1000000", guard.fetch); // the guard sits under the payer
+  const agent = createPayingFetch(agentKey, net.caip, USDC, "1000000", guard.fetch); // the guard sits under the payer
   const surety = createSuretyClient({ relayUrl: host, fetch: agent.fetch });
   console.log(`Agent ${agent.address}. Spent today ${guard.spentToday()} USDC, ${guard.remainingToday()} left.`);
 

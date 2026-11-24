@@ -5,7 +5,7 @@ nav: docs
 order: 2
 ---
 
-Everything here is live on Monad testnet (chain ID 10143) and uses test USDC. To launch your own bonded API, start with the [provider kit](/kit/). For the manual route, read [how to bond your API](/articles/bond-your-x402-api/).
+Everything here is live on {{network}} (chain ID {{chainId}}) and uses {{usdcLabel}}. {{#mainnet}}That is real money, and the vault contract has not been audited. {{/mainnet}}To launch your own bonded API, start with the [provider kit](/kit/). For the manual route, read [how to bond your API](/articles/bond-your-x402-api/).
 
 ## For agents
 
@@ -114,7 +114,7 @@ A JSON file at an https address you control:
 
 ### Vault functions
 
-The vault is at `0xf3F9e32De47a143149F7398f25f264b98a01273C`.
+The vault is at `{{vault}}`.
 
 | Function | What it does |
 | --- | --- |

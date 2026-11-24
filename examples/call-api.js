@@ -3,7 +3,7 @@
 //   AGENT_KEY=0x... node examples/call-api.js https://<surety-host> <providerAddress>
 //
 // AGENT_KEY is any wallet holding a little Monad testnet USDC (https://faucet.circle.com).
-// It pays $0.001 for the call. No gas needed.
+// It pays $0.001 for the call. No gas needed. For mainnet (real USDC) set SURETY_NETWORK=mainnet.
 const { createSuretyClient } = require("../sdk");
 const { createPayingFetch } = require("./x402-client");
 
@@ -15,10 +15,11 @@ if (!host || !provider || !agentKey) {
   console.error("Usage: AGENT_KEY=0x... node examples/call-api.js https://<surety-host> <providerAddress>");
   process.exit(1);
 }
-const USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3"; // Monad testnet USDC
+const net = require("../networks").networkFromEnv(); // testnet unless SURETY_NETWORK=mainnet
+const USDC = net.usdc;
 
 (async () => {
-  const agent = createPayingFetch(agentKey, "eip155:10143", USDC);
+  const agent = createPayingFetch(agentKey, net.caip, USDC);
   const surety = createSuretyClient({ relayUrl: host, fetch: agent.fetch });
   console.log("Agent:", agent.address);
   console.log("Provider trust:", await surety.trust(provider));

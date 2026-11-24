@@ -39,7 +39,7 @@ function createDemo(c) {
   const cooldown = { good: 8_000, slow: 45_000, ...c.cooldownMs };
   const cap = { good: 150, slow: 25, ...c.dailyCap };
   const margin = c.bondMargin ?? 10_000n; // 0.01 USDC
-  const explorer = c.explorer || "https://testnet.monadvision.com";
+  const explorer = c.explorer || require("./site/theme").NET.explorer;
 
   const last = { good: null, slow: null };
   const used = { day: "", good: 0, slow: 0 };

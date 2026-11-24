@@ -50,4 +50,4 @@ The agent is refunded exactly what it paid. On top of that, a 5% protocol fee is
 
 ## Where things stand
 
-Surety runs on Monad testnet with test funds. One relay, run by one developer, does the checking. The contracts are tested but not audited. Read the [FAQ](/faq/) for the plain answers, the [docs](/docs/) if you want to build against it, or the [source](https://github.com/j-6-z/surety).
+{{#testnet}}Surety runs on Monad testnet with test funds.{{/testnet}}{{#mainnet}}Surety runs on Monad mainnet with real USDC, as a beta.{{/mainnet}} One relay, run by one developer, does the checking. The contracts are tested but not audited. Read the [FAQ](/faq/) for the plain answers, the [docs](/docs/) if you want to build against it, or the [source](https://github.com/j-6-z/surety).

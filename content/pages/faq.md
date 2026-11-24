@@ -12,11 +12,16 @@ A way for AI agents to get their money back when a paid API fails them. API prov
 
 ## Is this real money?
 
+{{#testnet}}
 No. Surety runs on Monad testnet, and every bond, payment and refund uses test USDC that has no value. Do not send real funds to anything connected with it.
+{{/testnet}}
+{{#mainnet}}
+Yes. Surety runs on Monad mainnet, and every bond, payment and refund is real USDC. It is a beta: the contract has not been audited, and you should bond only what you can afford to lose.
+{{/mainnet}}
 
 ## Has it been audited?
 
-No. The contracts have a test suite, including randomised tests that check the vault's books always match its balance, but nobody independent has reviewed them. That is one of the reasons it stays on testnet.
+No. The contracts have a test suite, including randomised tests that check the vault's books always match its balance, but nobody independent has reviewed them. {{#testnet}}That is one of the reasons it stays on testnet.{{/testnet}}{{#mainnet}}That is why the minimum bond is small ({{minBond}} USDC) and why a single refund can never take more than that.{{/mainnet}}
 
 ## Who decides whether a call failed?
 
@@ -40,7 +45,7 @@ No. There is no Surety token or coin today. Anything being sold under that name 
 
 ## Which payments does it work with?
 
-x402 payments using the `exact` scheme, in USDC, on Monad testnet.
+x402 payments using the `exact` scheme, in USDC, on {{network}}.
 
 ## How do I list my API?
 

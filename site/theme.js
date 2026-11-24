@@ -6,7 +6,21 @@ const ICON = "data:image/svg+xml," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#6E54FF"/><g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 13l15 6v12c0 10-6 16-15 19-9-3-15-9-15-19V19z"/><path d="M25 31l5 5 9-10"/></g></svg>'
 );
 
-const DEFAULT_VAULT = "0xf3F9e32De47a143149F7398f25f264b98a01273C";
+const { networkFromEnv, NETWORKS } = require("../networks");
+
+// The network the pages describe. Set once from SURETY_NETWORK; the server calls
+// useNetwork() so what it says always matches the chain it is actually running on.
+let NET;
+try {
+  NET = networkFromEnv();
+} catch {
+  NET = { ...NETWORKS.testnet, facilitatorUrl: "" };
+}
+/** @param {object} profile  a network profile (or part of one) to describe from now on */
+function useNetwork(profile) {
+  Object.assign(NET, profile);
+  return NET;
+}
 
 // The page's one ornament: a pale flower, drawn once and reused as a background.
 // Sixteen petals in two rings. `tone` is the petal colour, `core` the centre.
@@ -88,4 +102,4 @@ ${o.extra || ""}${o.jsonLd ? `<script type="application/ld+json">${JSON.stringif
 <style>${baseCss}${o.css || ""}</style>`;
 }
 
-module.exports = { esc, head, baseCss, flower, ICON, SITE_NAME, DEFAULT_VAULT, DEFAULT_REPO: "https://github.com/j-6-z/surety" };
+module.exports = { esc, head, baseCss, flower, ICON, SITE_NAME, NET, useNetwork, DEFAULT_REPO: "https://github.com/j-6-z/surety" };

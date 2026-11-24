@@ -1,16 +1,21 @@
 ---
 title: Provider kit
-description: Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. Testnet, about ten minutes.
+description: Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. About ten minutes.
 nav: kit
 order: 4
 ---
 
-The kit is a small starter project. You describe your endpoints in one file. It handles the x402 paywall, publishes the promise Surety checks your calls against, and one command posts your bond. Everything runs on Monad testnet with test USDC.
+The kit is a small starter project. You describe your endpoints in one file. It handles the x402 paywall, publishes the promise Surety checks your calls against, and one command posts your bond. {{#testnet}}Everything runs on Monad testnet with test USDC.{{/testnet}}{{#mainnet}}This runs on Monad mainnet: your bond is real USDC, and the vault contract has not been audited. To practise first, the kit runs on testnet by default.{{/mainnet}}
 
 ## What you need
 
 - [Node.js](https://nodejs.org) 18 or newer
+{{#testnet}}
 - A testnet-only wallet with a little MON for fees and a few test USDC for the bond
+{{/testnet}}
+{{#mainnet}}
+- A wallet set aside for this, with a little MON for fees and the bond in USDC (the minimum is {{minBond}})
+{{/mainnet}}
 - Somewhere to host a Node app. The kit runs on Vercel as it is
 
 ## 1. Get the kit
@@ -40,7 +45,7 @@ Open `app.js`. Each endpoint has a promise and a handler:
 
 Three things to know:
 
-- **The clock includes payment.** Settling an x402 payment takes about 1.5 seconds on Monad testnet, and `maxLatencyMs` covers the whole call. Promise what you can keep.
+- **The clock includes payment.** Settling an x402 payment takes about a second or more on Monad, and `maxLatencyMs` covers the whole call. Promise what you can keep.
 - **The kit gives up before you pay for being late.** If a handler is still running with 2 seconds of its promise left, the kit answers with an error instead. The caller is not charged, so nothing comes out of your bond.
 - **Throwing is free for the caller.** If your handler throws, the call answers with an error and nobody is charged.
 - **`validate` runs before payment.** Use it to reject bad input so nobody pays for a typo.
@@ -51,7 +56,7 @@ Three things to know:
 copy .env.example .env
 ```
 
-Set `PAY_TO_ADDRESS` in `.env` to the wallet your payments should land in, then:
+Set `PAY_TO_ADDRESS` in `.env` to the wallet your payments should land in{{#mainnet}}, and add `SURETY_NETWORK=mainnet` so the kit charges real USDC on Monad mainnet{{/mainnet}}, then:
 
 ```
 npm start
@@ -75,6 +80,9 @@ Push the folder to GitHub and import it into Vercel, or use any Node host. Set t
 | --- | --- |
 | `PAY_TO_ADDRESS` | The wallet your payments land in |
 | `PUBLIC_URL` | Your final https address, with no slash at the end |
+{{#mainnet}}
+| `SURETY_NETWORK` | `mainnet` |
+{{/mainnet}}
 
 Your wallet key does not go on the host. The hosted API never needs it.
 
@@ -108,4 +116,4 @@ Withdrawals are queued, then released after the vault's waiting period. Your cal
 
 ## What this is today
 
-Testnet only, unaudited, and one relay run by Surety decides whether a call met its promise. Checks are objective: status code, response time, and response shape. Whether your answer was *good* is not something Surety judges. Use a wallet that holds nothing you care about.
+{{#testnet}}Testnet only, unaudited,{{/testnet}}{{#mainnet}}A mainnet beta with real money, unaudited,{{/mainnet}} and one relay run by Surety decides whether a call met its promise. Checks are objective: status code, response time, and response shape. Whether your answer was *good* is not something Surety judges. Use a wallet that holds nothing you care about.

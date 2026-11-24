@@ -20,7 +20,7 @@
 const fs = require("fs");
 const path = require("path");
 const { marked } = require("marked");
-const { esc, head, SITE_NAME } = require("../site/theme");
+const { esc, head, SITE_NAME, NET } = require("../site/theme");
 const { nav, navCss } = require("../site/nav");
 const { footer, footerCss } = require("../site/footer");
 
@@ -78,8 +78,17 @@ const render = (md) =>
     .replace(/<h([23])>([\s\S]*?)<\/h\1>/g, (_m, n, inner) => `<h${n} id="${slugify(inner)}">${inner}</h${n}>`);
 const plain = (html) => html.replace(/<\/(p|li|h\d|tr|td|th|div|pre)>|<br\s*\/?>/g, " ").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
 
+/// Written pages can differ by network:  {{#mainnet}}…{{/mainnet}}  {{#testnet}}…{{/testnet}}
+/// and can name the live details:  {{network}} {{chainId}} {{vault}} {{usdc}} {{usdcLabel}} {{minBond}} {{explorer}}
+function byNetwork(text) {
+  const vars = { network: NET.fullName, chainId: NET.chainId, vault: NET.vault, usdc: NET.usdc, usdcLabel: NET.usdcLabel, minBond: NET.minBond, explorer: NET.explorer };
+  return text
+    .replace(/\{\{#(mainnet|testnet)\}\}([\s\S]*?)\{\{\/\1\}\}\n?/g, (_m, which, inner) => ((which === "mainnet") === !!NET.real ? inner : ""))
+    .replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
+
 function parse(file, src = SRC) {
-  const raw = fs.readFileSync(path.join(src, file), "utf8").replace(/\r\n/g, "\n");
+  const raw = byNetwork(fs.readFileSync(path.join(src, file), "utf8").replace(/\r\n/g, "\n"));
   const m = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!m) throw new Error(`${file}: missing the --- header block`);
   const meta = {};
@@ -303,7 +312,7 @@ function build({ log = console.log, src = SRC, out = OUT, pagesSrc = PAGES_SRC, 
   return { published: all, scheduled, pages };
 }
 
-module.exports = { build, parse };
+module.exports = { byNetwork, build, parse };
 
 if (require.main === module) {
   try {

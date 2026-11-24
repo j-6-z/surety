@@ -160,3 +160,67 @@ describe("Mainnet readiness", function () {
     });
   });
 });
+
+describe("What the site says on each network", function () {
+  this.timeout(60_000);
+  const fs = require("fs"), os = require("os"), path = require("path");
+  const { NET, useNetwork } = require("../site/theme");
+  const saved = { ...NET };
+  afterEach(() => useNetwork(saved));
+
+  const TESTNET_WORDS = /testnet|test usdc|test funds|faucet|10143|0x534b2f3A|0xf3F9e32D|no value/i;
+  const pagesFor = (profile) => {
+    useNetwork(profile);
+    const { landingPage } = require("../marketdata/landing");
+    const { directoryPage } = require("../site/directory");
+    const { bondPage } = require("../site/bond-page");
+    const { build } = require("../scripts/generate");
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), "surety-net-"));
+    build({ out, log() {}, scheduleFile: path.join(out, "schedule.json") });
+    const pages = {
+      home: landingPage({ url: "https://s.example", provider: B, vaultAddress: profile.vault, repoUrl: "https://github.com/x/y", price: "$0.001" }),
+      providers: directoryPage({ url: "https://s.example", vaultAddress: profile.vault }),
+      bond: bondPage({ url: "https://s.example", vaultAddress: profile.vault, usdcAddress: profile.usdc, chainId: profile.chainId }),
+    };
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith(".html") ? [path.join(dir, e.name)] : []));
+    for (const f of walk(out)) pages[path.relative(out, f)] = fs.readFileSync(f, "utf8");
+    return pages;
+  };
+
+  it("on mainnet, no page calls it a testnet or says the money is not real", () => {
+    const pages = pagesFor(NETWORKS.mainnet);
+    expect(Object.keys(pages).length).to.be.above(9);
+    for (const [name, html] of Object.entries(pages)) {
+      const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " ");
+      // The kit page may explain that the kit itself defaults to testnet; nothing else may mention it.
+      const hit = text.match(TESTNET_WORDS);
+      if (hit && !(name.startsWith("kit") && /testnet by default/.test(text))) throw new Error(`${name} still says "${hit[0]}": …${text.slice(Math.max(0, hit.index - 80), hit.index + 80)}…`);
+      expect(html, name).to.not.contain("{{").and.to.not.contain("undefined");
+    }
+    expect(pages.home).to.contain("Monad mainnet").and.to.contain("real USDC").and.to.contain(NETWORKS.mainnet.vault);
+    expect(pages.home).to.contain("Beta, not audited").and.to.contain("Unaudited beta");
+    expect(pages.bond).to.contain("has not been audited").and.to.contain('"chainName":"Monad"');
+    expect(pages[path.join("faq", "index.html")]).to.contain("every bond, payment and refund is real USDC");
+    expect(pages[path.join("docs", "index.html")]).to.contain(NETWORKS.mainnet.vault).and.to.contain("chain ID 143");
+  });
+
+  it("on testnet, everything still says test funds", () => {
+    const pages = pagesFor(NETWORKS.testnet);
+    expect(pages.home).to.contain("Monad testnet").and.to.contain("Test funds only").and.to.contain(NETWORKS.testnet.vault);
+    expect(pages[path.join("faq", "index.html")]).to.contain("test USDC that has no value");
+    for (const [name, html] of Object.entries(pages)) expect(html, name).to.not.contain("{{").and.to.not.contain("real USDC");
+  });
+
+  it("the server describes the chain it is actually on", async () => {
+    const c = configFromEnv({ VAULT_ADDRESS: NETWORKS.mainnet.vault, PUBLIC_URL: "https://s.example", SURETY_NETWORK: "mainnet", ARBITER_KEY: KEY, PROVIDER_ADDRESS: B, PAY_TO_ADDRESS: C });
+    const { app } = buildSuretyApp({ ...c, reader: {} }); // the build default is testnet; the server must override it
+    const server = await new Promise((r) => { const h = app.listen(0, "127.0.0.1", () => r(h)); });
+    try {
+      const home = await (await fetch(`http://127.0.0.1:${server.address().port}/`, { headers: { accept: "text/html" } })).text();
+      expect(home).to.contain("Monad mainnet").and.to.contain("monadvision.com/address/" + NETWORKS.mainnet.vault);
+      expect(home).to.not.contain("testnet.monadvision.com");
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  });
+});

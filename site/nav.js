@@ -5,7 +5,7 @@
 // the brand, four menus that open on click (never on hover), and the two actions.
 // On phones the menus collapse behind a Menu button and open as one list.
 // Without JavaScript every link is simply shown.
-const { esc, DEFAULT_REPO, DEFAULT_VAULT } = require("./theme");
+const { esc, DEFAULT_REPO, NET } = require("./theme");
 
 const navCss = `
 header.site{position:sticky;top:0;z-index:50;margin:0 0 6px}
@@ -117,7 +117,7 @@ const SHIELD = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" hei
  */
 function nav(o = {}) {
   const repo = esc(o.repoUrl || DEFAULT_REPO);
-  const vault = esc(o.vaultAddress || DEFAULT_VAULT);
+  const vault = esc(o.vaultAddress || NET.vault);
   const menus = MENUS(repo).map((m, i) => {
     const items = m.items.map(
       (l) => `<a href="${l.href}"${l.id && l.id === o.current ? ' aria-current="page"' : ""}><strong>${l.t}</strong><span>${l.d}</span></a>`
@@ -127,9 +127,9 @@ function nav(o = {}) {
   return `<script>document.documentElement.className+=" js"</script>
 <header class="site">
   <div class="util">
-    <p><span class="net">Monad testnet</span><span class="stats" id="util-stats" hidden><span><b id="us-p"></b> bonded</span><span><b id="us-b"></b> USDC in bonds</span><span><b id="us-r"></b> paid out</span></span></p>
+    <p><span class="net">${esc(NET.label)}</span><span class="stats" id="util-stats" hidden><span><b id="us-p"></b> bonded</span><span><b id="us-b"></b> USDC in bonds</span><span><b id="us-r"></b> paid out</span></span></p>
     <ul>
-      <li class="opt"><a class="mono" href="https://testnet.monadvision.com/address/${vault}" rel="noopener" title="Vault contract">Vault ${vault.slice(0, 6)}…${vault.slice(-4)}</a></li>
+      <li class="opt"><a class="mono" href="${esc(NET.explorer)}/address/${vault}" rel="noopener" title="Vault contract">Vault ${vault.slice(0, 6)}…${vault.slice(-4)}</a></li>
       <li><a href="${repo}">GitHub</a></li>
       <li><a href="/faq/">FAQ</a></li>
     </ul>

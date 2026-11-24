@@ -1,7 +1,7 @@
 // "Bond your API": the self-serve page where a provider lists an API and posts
 // its bond from the browser, with their own wallet. No crypto library is loaded:
 // the server builds each transaction (site/bond-api.js) and the wallet signs it.
-const { head } = require("./theme");
+const { head, NET } = require("./theme");
 const { nav, navCss } = require("./nav");
 const { footer, footerCss } = require("./footer");
 
@@ -50,9 +50,9 @@ button.act[disabled]{opacity:.5;cursor:not-allowed}
 @media (max-width:520px){ol.flow>li{padding:18px}button.act{width:100%}}
 `;
 
-function bondPage({ url, vaultAddress, usdcAddress, chainId, repoUrl, explorer = "https://testnet.monadvision.com" }) {
-  const description = "List your paid API on Surety and post its bond from your browser, with your own wallet. Monad testnet, test funds only.";
-  const cfg = JSON.stringify({ chainId, vault: vaultAddress, usdc: usdcAddress, url, explorer }).replace(/</g, "\\u003c");
+function bondPage({ url, vaultAddress, usdcAddress, chainId, repoUrl, explorer = NET.explorer }) {
+  const description = `List your paid API on Surety and post its bond from your browser, with your own wallet. ${NET.real ? "Monad mainnet, real USDC, unaudited beta." : "Monad testnet, test funds only."}`;
+  const cfg = JSON.stringify({ chainId, vault: vaultAddress, usdc: usdcAddress, url, explorer, chainName: NET.chainName, networkName: NET.fullName, rpc: NET.chainId === chainId ? NET.rpc : null }).replace(/</g, "\\u003c");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -70,7 +70,7 @@ ${head({
 ${nav({ current: "bond" })}
 <main class="bond">
   <h1>Bond your API</h1>
-  <p class="standfirst">List a paid x402 API and put a bond behind it, from this page, with your own wallet. Everything here uses Monad testnet and test USDC.</p>
+  <p class="standfirst">List a paid x402 API and put a bond behind it, from this page, with your own wallet. ${NET.real ? "This is Monad mainnet: the bond is real USDC, and the contract has not been audited. Bond only what you can afford to lose." : "Everything here uses Monad testnet and test USDC."}</p>
 
   <div class="grid">
     <ol class="flow">
@@ -83,7 +83,7 @@ ${nav({ current: "bond" })}
       </li>
       <li id="s-wallet" class="locked">
         <h2>Connect your wallet</h2>
-        <p>Use the wallet that will own this listing. It needs a little test MON for gas and test USDC for the bond.</p>
+        <p>Use the wallet that will own this listing. It needs a little ${NET.real ? "MON for gas and USDC" : "test MON for gas and test USDC"} for the bond.</p>
         <button class="act" id="wallet-btn" type="button" disabled>Connect wallet</button>
         <div class="msg" id="wallet-msg" role="status"></div>
       </li>
@@ -124,7 +124,7 @@ ${nav({ current: "bond" })}
       <p>Vault <span class="mono">${vaultAddress}</span></p>
     </aside>
   </div>
-  <p class="fine">This is an experiment on a test network. One relay, run by Surety's developer, decides whether a call kept its promise, and its decision moves money out of your bond. The contracts are tested but not audited. Use test funds only. Each step shows you exactly what it will do before your wallet asks you to sign.</p>
+  <p class="fine">${NET.real ? "This is a beta on Monad mainnet, with real money." : "This is an experiment on a test network."} One relay, run by Surety's developer, decides whether a call kept its promise, and its decision moves money out of your bond. The contracts are tested but not audited. ${NET.real ? "Bond only what you can afford to lose." : "Use test funds only."} Each step shows you exactly what it will do before your wallet asks you to sign.</p>
 </main>
 ${footer({ vaultAddress, repoUrl })}
 </div>
@@ -219,8 +219,8 @@ ${footer({ vaultAddress, repoUrl })}
   function onNetwork() {
     var hex = "0x" + CFG.chainId.toString(16);
     return eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] }).catch(function (e) {
-      if (e && e.code === 4902 && CFG.chainId === 10143) {
-        return eth.request({ method: "wallet_addEthereumChain", params: [{ chainId: hex, chainName: "Monad Testnet", nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 }, rpcUrls: ["https://testnet-rpc.monad.xyz"], blockExplorerUrls: [CFG.explorer] }] });
+      if (e && e.code === 4902 && CFG.rpc) {
+        return eth.request({ method: "wallet_addEthereumChain", params: [{ chainId: hex, chainName: CFG.chainName, nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 }, rpcUrls: [CFG.rpc], blockExplorerUrls: [CFG.explorer] }] });
       }
       throw e;
     });
@@ -231,7 +231,7 @@ ${footer({ vaultAddress, repoUrl })}
     eth.request({ method: "eth_requestAccounts" }).then(function (accts) {
       state.account = accts[0];
       return onNetwork();
-    }).then(function () { msg("wallet-msg", "Connected on Monad testnet.", "ok"); return refresh(); })
+    }).then(function () { msg("wallet-msg", "Connected on " + CFG.networkName + ".", "ok"); return refresh(); })
       .catch(function (e) { state.account = null; msg("wallet-msg", why(e), "err"); render(); });
   });
   if (eth && eth.on) eth.on("accountsChanged", function (a) { state.account = a[0] || null; state.info = null; $("amount").value = ""; if (state.account) refresh(); else render(); });

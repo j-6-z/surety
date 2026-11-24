@@ -10,8 +10,23 @@ const { ExactEvmScheme } = require("@x402/evm/exact/server");
 const MONAD_TESTNET = {
   network: "eip155:10143",
   usdc: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+  rpc: "https://testnet-rpc.monad.xyz",
   facilitatorUrl: "https://x402-facilitator.molandak.org",
 };
+const MONAD_MAINNET = {
+  network: "eip155:143",
+  usdc: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", // real USDC
+  rpc: "https://rpc.monad.xyz",
+  facilitatorUrl: "https://x402-facilitator.molandak.org",
+};
+
+/// Testnet unless SURETY_NETWORK=mainnet. Mainnet means real money.
+function networkFromEnv(env = process.env) {
+  const key = String(env.SURETY_NETWORK || "testnet").toLowerCase();
+  if (key !== "testnet" && key !== "mainnet") throw new Error(`SURETY_NETWORK must be "testnet" or "mainnet", not "${env.SURETY_NETWORK}".`);
+  const base = key === "mainnet" ? MONAD_MAINNET : MONAD_TESTNET;
+  return { ...base, key, rpc: env.RPC_URL || base.rpc };
+}
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
 /// The public https address of this server, from settings or from the host's own variables.
@@ -41,8 +56,9 @@ function publicUrlFromEnv(env = process.env) {
 function createBondedApi(o) {
   if (!ADDRESS.test(o.payTo || "")) throw new Error("payTo must be a wallet address (set PAY_TO_ADDRESS).");
   if (!Array.isArray(o.endpoints) || o.endpoints.length === 0) throw new Error("Add at least one endpoint.");
-  const network = o.network || MONAD_TESTNET.network;
-  const usdc = o.usdc || MONAD_TESTNET.usdc;
+  const net = networkFromEnv();
+  const network = o.network || net.network;
+  const usdc = o.usdc || net.usdc;
   const defaultPrice = o.price || "$0.001";
   const settleReserveMs = o.settleReserveMs ?? 2000;
   let baseUrl = (o.publicUrl || "").replace(/\/+$/, "");
@@ -63,8 +79,8 @@ function createBondedApi(o) {
   });
 
   const scheme = new ExactEvmScheme();
-  scheme.registerMoneyParser(async (amount, net) =>
-    net === network ? { amount: Math.round(amount * 1_000_000).toString(), asset: usdc, extra: { name: "USDC", version: "2" } } : null
+  scheme.registerMoneyParser(async (amount, n) =>
+    n === network ? { amount: Math.round(amount * 1_000_000).toString(), asset: usdc, extra: { name: "USDC", version: "2" } } : null
   );
   const x402 = new x402ResourceServer(new HTTPFacilitatorClient({ url: o.facilitatorUrl || MONAD_TESTNET.facilitatorUrl })).register(network, scheme);
 
@@ -156,4 +172,4 @@ function createBondedApi(o) {
   return { app, sla, endpoints, run, settleReserveMs, listen, close: () => new Promise((r) => httpServer.close(r)), slaUrl: () => `${baseUrl}/.well-known/surety.json` };
 }
 
-module.exports = { createBondedApi, publicUrlFromEnv, MONAD_TESTNET };
+module.exports = { createBondedApi, publicUrlFromEnv, networkFromEnv, MONAD_TESTNET, MONAD_MAINNET };

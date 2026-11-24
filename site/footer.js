@@ -4,11 +4,9 @@
 // visitor can do; the whole site map with a line under each link; the on-chain
 // details someone checking the project wants; and a plain statement of what
 // this is today, above the legal line.
-const { esc, flower, DEFAULT_REPO, DEFAULT_VAULT } = require("./theme");
+const { esc, flower, DEFAULT_REPO, NET } = require("./theme");
 const { SHIELD } = require("./nav");
 
-const USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3";
-const EXPLORER = "https://testnet.monadvision.com/address/";
 
 const footerCss = `
 footer.site{position:relative;margin-top:104px;color:#D9D2F7;padding:68px 0 30px;font-size:16.5px}
@@ -76,7 +74,11 @@ footer.site .legal a{color:#D9D2F7;padding:4px 0;display:inline-block}
  */
 function footer(o = {}) {
   const repo = esc(o.repoUrl || DEFAULT_REPO);
-  const vault = esc(o.vaultAddress || DEFAULT_VAULT);
+  const vault = esc(o.vaultAddress || NET.vault);
+  const USDC = esc(NET.usdc), EXPLORER = `${esc(NET.explorer)}/address/`;
+  const today = NET.real
+    ? `Surety runs on ${esc(NET.fullName)} with real USDC. The vault contract has not been independently audited, and one relay, run by us, decides whether a call kept its promise. Bond only what you can afford to lose.`
+    : `Surety runs on ${esc(NET.fullName)} with test USDC. One relay, run by us, decides whether a call kept its promise. Nothing here holds real money yet.`;
   const col = (title, links) =>
     `<div><h2>${title}</h2><ul>${links.map(([href, t, d, ext]) => `<li><a href="${href}"${ext ? ' rel="noopener"' : ""}>${t}</a><span>${d}</span></li>`).join("")}</ul></div>`;
   return `<footer class="site">
@@ -88,7 +90,7 @@ function footer(o = {}) {
     <div class="acts">
       <a class="one" href="/#demo">Run the demo</a>
       <a class="two" href="/bond/">Bond your API</a>
-      <p>No wallet needed for the demo. Bonding takes about five minutes on testnet.</p>
+      <p>No wallet needed for the demo. Bonding takes about five minutes.</p>
     </div>
   </div>
 
@@ -122,22 +124,22 @@ function footer(o = {}) {
   <div class="chain">
     <div class="today">
       <h2>Where this stands</h2>
-      <p class="state">Experimental, not audited</p>
-      <p>Surety runs on Monad testnet with test USDC. One relay, run by us, decides whether a call kept its promise. Nothing here holds real money yet.</p>
+      <p class="state">${esc(NET.status)}</p>
+      <p>${today}</p>
     </div>
     <div>
       <h2>On-chain details</h2>
       <dl>
-        <dt>Network</dt><dd>Monad testnet, chain ID 10143</dd>
+        <dt>Network</dt><dd>${esc(NET.fullName)}, chain ID ${NET.chainId}</dd>
         <dt>Vault contract</dt><dd class="mono"><a href="${EXPLORER}${vault}" rel="noopener">${vault}</a></dd>
-        <dt>Payment token</dt><dd class="mono"><a href="${EXPLORER}${USDC}" rel="noopener">${USDC}</a> <span>(test USDC)</span></dd>
+        <dt>Payment token</dt><dd class="mono"><a href="${EXPLORER}${USDC}" rel="noopener">${USDC}</a> <span>(${esc(NET.usdcLabel)})</span></dd>
         <dt>Payments</dt><dd>x402, settled per call</dd>
       </dl>
     </div>
   </div>
 
   <div class="legal">
-    <span>&copy; 2026 Surety. Test funds only. Nothing here is financial advice.</span>
+    <span>&copy; 2026 Surety. ${NET.real ? "Unaudited beta: use at your own risk." : "Test funds only."} Nothing here is financial advice.</span>
     <ul>
       <li><a href="${repo}/blob/main/LICENSE">MIT licence</a></li>
       <li><a href="${repo}">GitHub</a></li>

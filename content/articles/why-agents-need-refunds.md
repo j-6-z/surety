@@ -32,4 +32,4 @@ That does two things at once. The agent gets its money back without asking anyon
 
 ## Where this stands
 
-Surety runs on Monad testnet today, with test funds and one provider. It is not audited. You can [run a live call](/#demo) and watch a refund happen, or read [how the bond works](/articles/how-a-surety-bond-works/) step by step.
+Surety runs on {{network}} today, with {{#testnet}}test funds{{/testnet}}{{#mainnet}}real USDC{{/mainnet}} and one provider. It is not audited. You can [run a live call](/#demo) and watch a refund happen, or read [how the bond works](/articles/how-a-surety-bond-works/) step by step.

@@ -17,7 +17,8 @@ const { createCronPublish } = require("./site/cron");
 const { directoryPage, notFoundPage } = require("./site/directory");
 const { bondPage } = require("./site/bond-page");
 const { createBondApi } = require("./site/bond-api");
-const { networkFromEnv } = require("./networks");
+const { networkFromEnv, networkByCaip } = require("./networks");
+const { useNetwork } = require("./site/theme");
 
 // Written by scripts/generate.js. Missing on a fresh checkout that hasn't been built yet.
 let schedule = { scheduled: [] };
@@ -47,6 +48,9 @@ function derivePayTo(privateKey) {
  */
 function buildSuretyApp(c) {
   const payTo = c.payTo || derivePayTo(c.wallet.privateKey);
+  // The pages must describe the chain this server is on, whatever the build was told.
+  const profile = networkByCaip(c.network);
+  if (profile) useNetwork({ ...profile, usdc: c.usdcAddress, vault: c.vaultAddress, ...(c.explorer ? { explorer: c.explorer } : {}) });
   // Three roles that one test wallet can play, and that mainnet keeps apart:
   // the relay's signer (c.wallet), the provider being sold, and whoever pays for the homepage demo.
   const providerAddress = c.providerAddress || c.wallet.address;

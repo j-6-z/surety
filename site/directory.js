@@ -1,6 +1,6 @@
 // The provider directory: every bonded provider this relay knows about, with
 // its live record. The page is a shell; the rows come from /providers.json.
-const { esc, head } = require("./theme");
+const { esc, head, NET } = require("./theme");
 const { nav, navCss } = require("./nav");
 const { footer, footerCss } = require("./footer");
 
@@ -34,7 +34,7 @@ const CSS = `
 `;
 
 function directoryPage({ url, vaultAddress, repoUrl }) {
-  const description = "Every API provider bonded on Surety, with its live bond, refund history and trust score, read from the vault on Monad testnet.";
+  const description = "Every API provider bonded on Surety, with its live bond, refund history and trust score, read from the vault on " + NET.fullName + ".";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -57,7 +57,7 @@ ${nav({ current: "providers" })}
   <ul class="rows" id="rows"></ul>
   <div class="note">
     <h2>Run a paid API? Add yours.</h2>
-    <p>Listing is open to anyone: publish what you promise, register on the vault and post a bond. On testnet that costs nothing real and takes about fifteen minutes.</p>
+    <p>Listing is open to anyone: publish what you promise, register on the vault and post a bond. ${NET.real ? `The minimum bond is ${esc(NET.minBond)} USDC, in real money, and it takes about fifteen minutes.` : "On testnet that costs nothing real and takes about fifteen minutes."}</p>
     <a class="go" href="/bond/">Bond your API</a>
   </div>
 </main>

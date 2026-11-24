@@ -1,6 +1,6 @@
 # Surety provider kit
 
-A paid x402 API on Monad with a bond behind it. You write the endpoints; the kit handles the paywall, publishes your promise, and posts your bond. Monad testnet, test USDC.
+A paid x402 API on Monad with a bond behind it. You write the endpoints; the kit handles the paywall, publishes your promise, and posts your bond. Monad testnet by default, mainnet with one setting.
 
 Full walkthrough: https://www.surety.buzz/kit/
 
@@ -37,4 +37,4 @@ copy .env.example .env        (macOS/Linux: cp .env.example .env)
 - `validate` runs before payment. Reject bad input there.
 - `PRIVATE_KEY` stays on your computer. Never put it on the host, never commit `.env`.
 
-Testnet only and unaudited. Use a wallet that holds nothing you care about.
+Runs on Monad testnet by default. Set `SURETY_NETWORK=mainnet` (in `.env` and on your host) for real USDC. The vault contract is unaudited, so use a wallet that holds nothing you can't afford to lose.

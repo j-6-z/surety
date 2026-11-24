@@ -5,23 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#6E54FF">
 <title>Provider kit | Surety</title>
-<meta name="description" content="Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. Testnet, about ten minutes.">
+<meta name="description" content="Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. About ten minutes.">
 <link rel="canonical" href="https://www.surety.buzz/kit/">
 <meta property="og:site_name" content="Surety">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Provider kit | Surety">
-<meta property="og:description" content="Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. Testnet, about ten minutes.">
+<meta property="og:description" content="Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. About ten minutes.">
 <meta property="og:url" content="https://www.surety.buzz/kit/">
 <meta property="og:image" content="https://www.surety.buzz/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Provider kit | Surety">
-<meta name="twitter:description" content="Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. Testnet, about ten minutes.">
+<meta name="twitter:description" content="Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. About ten minutes.">
 <meta name="twitter:image" content="https://www.surety.buzz/og.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%236E54FF%22%2F%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M32%2013l15%206v12c0%2010-6%2016-15%2019-9-3-15-9-15-19V19z%22%2F%3E%3Cpath%20d%3D%22M25%2031l5%205%209-10%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <link rel="alternate" type="application/rss+xml" title="Surety articles" href="https://www.surety.buzz/rss.xml">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"Provider kit","description":"Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. Testnet, about ten minutes.","url":"https://www.surety.buzz/kit/"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"Provider kit","description":"Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. About ten minutes.","url":"https://www.surety.buzz/kit/"}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -264,15 +264,18 @@ if(c&&Date.now()-c.at<60000)show(c.d);else fetch("/providers.json").then(functio
 <article class="post">
   <header>
     <h1>Provider kit</h1>
-    <p class="standfirst">Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. Testnet, about ten minutes.</p>
+    <p class="standfirst">Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. About ten minutes.</p>
   </header>
   <div class="prose">
 <p>The kit is a small starter project. You describe your endpoints in one file. It handles the x402 paywall, publishes the promise Surety checks your calls against, and one command posts your bond. Everything runs on Monad testnet with test USDC.</p>
 <h2 id="what-you-need">What you need</h2>
 <ul>
-<li><a href="https://nodejs.org">Node.js</a> 18 or newer</li>
-<li>A testnet-only wallet with a little MON for fees and a few test USDC for the bond</li>
-<li>Somewhere to host a Node app. The kit runs on Vercel as it is</li>
+<li><p><a href="https://nodejs.org">Node.js</a> 18 or newer</p>
+</li>
+<li><p>A testnet-only wallet with a little MON for fees and a few test USDC for the bond</p>
+</li>
+<li><p>Somewhere to host a Node app. The kit runs on Vercel as it is</p>
+</li>
 </ul>
 <h2 id="1-get-the-kit">1. Get the kit</h2>
 <pre><code>npx degit j-6-z/surety/kit my-api
@@ -293,7 +296,7 @@ npm install
 </code></pre>
 <p>Three things to know:</p>
 <ul>
-<li><strong>The clock includes payment.</strong> Settling an x402 payment takes about 1.5 seconds on Monad testnet, and <code>maxLatencyMs</code> covers the whole call. Promise what you can keep.</li>
+<li><strong>The clock includes payment.</strong> Settling an x402 payment takes about a second or more on Monad, and <code>maxLatencyMs</code> covers the whole call. Promise what you can keep.</li>
 <li><strong>The kit gives up before you pay for being late.</strong> If a handler is still running with 2 seconds of its promise left, the kit answers with an error instead. The caller is not charged, so nothing comes out of your bond.</li>
 <li><strong>Throwing is free for the caller.</strong> If your handler throws, the call answers with an error and nobody is charged.</li>
 <li><strong><code>validate</code> runs before payment.</strong> Use it to reject bad input so nobody pays for a typo.</li>
@@ -358,7 +361,7 @@ npm install
     <div class="acts">
       <a class="one" href="/#demo">Run the demo</a>
       <a class="two" href="/bond/">Bond your API</a>
-      <p>No wallet needed for the demo. Bonding takes about five minutes on testnet.</p>
+      <p>No wallet needed for the demo. Bonding takes about five minutes.</p>
     </div>
   </div>
 

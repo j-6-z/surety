@@ -125,7 +125,7 @@ if (require.main === module) {
   (async () => {
     if (!env.PRIVATE_KEY) throw stop("Put your wallet key in .env as PRIVATE_KEY=... (copy .env.example to .env first).");
     const key = env.PRIVATE_KEY.startsWith("0x") ? env.PRIVATE_KEY : `0x${env.PRIVATE_KEY}`;
-    const wallet = new ethers.Wallet(key, new ethers.JsonRpcProvider(env.RPC_URL || "https://testnet-rpc.monad.xyz"));
+    const wallet = new ethers.Wallet(key, new ethers.JsonRpcProvider(require("./surety").networkFromEnv(env).rpc));
     await bond({ url: process.argv[2], amount: process.argv[3], wallet, suretyUrl: env.SURETY_URL, vaultAddress: env.VAULT_ADDRESS });
   })().then(
     () => process.exit(0),

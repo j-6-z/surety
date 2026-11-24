@@ -44,4 +44,4 @@ A bond is only worth something if it can't vanish when a claim is coming. Three 
 
 Its record is public: bond size, refunds paid out, pass rate over paid calls, and a single trust score that combines them. You can see the first provider's on the [homepage](/), under the demo.
 
-Surety is on Monad testnet with test funds, run by a single relay, and not audited. The [source is public](https://github.com/j-6-z/surety).
+Surety is on {{network}} with {{#testnet}}test funds{{/testnet}}{{#mainnet}}real USDC, as a beta{{/mainnet}}, run by a single relay, and not audited. The [source is public](https://github.com/j-6-z/surety).

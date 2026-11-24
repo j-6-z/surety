@@ -2,14 +2,14 @@
 //
 //   npm run try -- https://your-api.example/v1/block
 //
-// Pays from PRIVATE_KEY in .env (a fraction of a cent of test USDC, no network fee).
+// Pays from PRIVATE_KEY in .env (a fraction of a cent, no network fee).
 const { privateKeyToAccount } = require("viem/accounts");
 const { wrapFetchWithPayment, x402Client } = require("@x402/fetch");
 const { ExactEvmScheme } = require("@x402/evm/exact/client");
-const { MONAD_TESTNET } = require("./surety");
+const { networkFromEnv } = require("./surety");
 
 /// Calls `path` on `provider` through the relay, paying from `privateKey`.
-async function tryCall({ suretyUrl, provider, path, privateKey, network = MONAD_TESTNET.network, usdc = MONAD_TESTNET.usdc }) {
+async function tryCall({ suretyUrl, provider, path, privateKey, network = networkFromEnv().network, usdc = networkFromEnv().usdc }) {
   const account = privateKeyToAccount(privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`);
   const client = new x402Client()
     .register(network, new ExactEvmScheme(account))

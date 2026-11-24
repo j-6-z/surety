@@ -1,7 +1,7 @@
 // The human-facing homepage. Agents asking for JSON still get JSON from "/".
 // The hero is a working demo: it runs real paid calls through /demo/run and
 // shows the pass or the on-chain refund as it happens.
-const { esc, head } = require("../site/theme");
+const { esc, head, NET } = require("../site/theme");
 const { nav, navCss } = require("../site/nav");
 const { footer, footerCss } = require("../site/footer");
 
@@ -150,7 +150,7 @@ main>.facts{margin-top:28px}
 function landingPage({ url, provider, vaultAddress, repoUrl, price }) {
   const cmd = `node examples/call-api.js ${url} ${provider}`;
   const description =
-    "API providers post a bond. If a paid x402 call comes back slow or broken, the agent is refunded on-chain. Run a live call on Monad testnet.";
+    "API providers post a bond. If a paid x402 call comes back slow or broken, the agent is refunded on-chain. Run a live call on " + NET.fullName + ".";
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -189,13 +189,13 @@ ${nav({ current: "home", repoUrl })}
 
   <div class="console" id="demo">
     <h2>See it happen</h2>
-    <p class="hint">Each button makes a real ${esc(price)} payment to a live API on Monad testnet. No wallet needed.</p>
+    <p class="hint">Each button makes a real ${esc(price)} payment to a live API on ${esc(NET.fullName)}. No wallet needed.</p>
     <div class="runs">
       <button class="run good" type="button" data-kind="good">Run a good call<small>Buys the live MON price</small></button>
       <button class="run slow" type="button" data-kind="slow">Run a slow call<small>Triggers a refund from the bond</small></button>
     </div>
     <ol class="trace" aria-live="polite">
-      <li id="t-pay"><div class="n"><span class="pip"></span>Agent pays</div><div class="v">${esc(price)}</div><div class="d">Paid over x402, in test USDC.</div></li>
+      <li id="t-pay"><div class="n"><span class="pip"></span>Agent pays</div><div class="v">${esc(price)}</div><div class="d">Paid over x402, in ${esc(NET.usdcLabel)}.</div></li>
       <li id="t-answer"><div class="n"><span class="pip"></span>Provider answers</div><div class="v">&nbsp;</div><div class="d">Timed from request to full response.</div></li>
       <li id="t-check"><div class="n"><span class="pip"></span>Surety checks</div><div class="v">&nbsp;</div><div class="d">Status, speed and shape against the promise.</div></li>
       <li id="t-outcome" class="outcome"><div class="n"><span class="pip"></span>Outcome</div><div class="v">&nbsp;</div><div class="d">Pass, or a refund from the bond.</div></li>
@@ -220,7 +220,7 @@ ${nav({ current: "home", repoUrl })}
       <h3>You run a paid API</h3>
       <p>List it and put a bond behind it. Agents can see what you promise and what you stand to lose, which is a reason to pick you over an API with nothing at stake.</p>
       <a class="go" href="/bond/">Bond your API</a>
-      <p class="small">Done in the browser with your own wallet. About five minutes on testnet.</p>
+      <p class="small">Done in the browser with your own wallet. About five minutes.${NET.real ? " The bond is real USDC." : ""}</p>
     </div>
     <div class="job">
       <h3>You build agents</h3>
@@ -236,9 +236,11 @@ ${nav({ current: "home", repoUrl })}
   <div class="two">
     <div>
       <h2 class="title">Now call it with your own wallet</h2>
-      <p class="sub">The first bonded provider is a small price API. It reads the MON price straight from on-chain pools and sells each answer for ${esc(price)}. You need Node 18 or newer and a wallet with a little Monad testnet USDC. No gas.</p>
+      <p class="sub">The first bonded provider is a small price API. It reads the MON price straight from on-chain pools and sells each answer for ${esc(price)}. You need Node 18 or newer and a wallet with a little ${NET.real ? "USDC on Monad" : "Monad testnet USDC"}. No gas.</p>
       <ul class="plain">
-        <li><strong>Free test USDC</strong><span>From <a href="https://faucet.circle.com">faucet.circle.com</a>: choose USDC, then Monad Testnet.</span></li>
+        ${NET.real
+          ? `<li><strong>Real money, small amounts</strong><span>Each call costs ${esc(price)} in real USDC. Use a wallet that holds only what you mean to spend.</span></li>`
+          : `<li><strong>Free test USDC</strong><span>From <a href="https://faucet.circle.com">faucet.circle.com</a>: choose USDC, then Monad Testnet.</span></li>`}
         <li><strong>Read before you run</strong><span>The <a href="/.well-known/surety.json">promise it is bonded against</a> and its <a href="/trust/${esc(provider)}">live trust record</a>.</span></li>
       </ul>
     </div>
@@ -248,8 +250,8 @@ ${nav({ current: "home", repoUrl })}
 git clone ${esc(repoUrl)}.git
 cd surety && npm install --omit=dev
 
-<span class="c"># pay for one call with your testnet key</span>
-export AGENT_KEY=0xYourKey
+<span class="c"># pay for one call${NET.real ? " (a wallet holding only a little USDC)" : " with your testnet key"}</span>
+${NET.real ? "export SURETY_NETWORK=mainnet\n" : ""}export AGENT_KEY=0xYourKey
 ${esc(cmd)}</pre>
     </div>
   </div>
@@ -272,10 +274,12 @@ ${esc(cmd)}</pre>
   <div class="two">
     <div>
       <h2 class="title">What this is today</h2>
-      <p class="sub">An experiment that works end to end on a test network. It is not ready for real money, and here is why.</p>
+      <p class="sub">${NET.real ? "A beta that works end to end on Monad mainnet, with real USDC. Here is what you are trusting if you use it." : "An experiment that works end to end on a test network. It is not ready for real money, and here is why."}</p>
     </div>
     <ul class="plain">
-      <li><strong>Testnet only</strong><span>Every bond, payment and refund here is test USDC with no value.</span></li>
+      ${NET.real
+        ? "<li><strong>Real money</strong><span>Every bond, payment and refund is real USDC. Bond only what you can afford to lose.</span></li>"
+        : "<li><strong>Testnet only</strong><span>Every bond, payment and refund here is test USDC with no value.</span></li>"}
       <li><strong>Not audited</strong><span>The contracts have tests, including randomised ones, but no independent review.</span></li>
       <li><strong>One trusted relay</strong><span>A single operator checks calls and files refunds. Its rules and code are public.</span></li>
       <li><strong>One provider so far</strong><span>The price API is run by the same person who built Surety.</span></li>
@@ -324,7 +328,7 @@ ${footer({ vaultAddress, repoUrl })}
 
   function show(r) {
     var passed = r.verdict === "pass";
-    set("t-pay", "done", null, r.paymentTx ? txLink(r, r.paymentTx, "See the payment") + " on the explorer." : "Paid over x402, in test USDC.");
+    set("t-pay", "done", null, r.paymentTx ? txLink(r, r.paymentTx, "See the payment") + " on the explorer." : "Paid over x402, in ${esc(NET.usdcLabel)}.");
     set("t-answer", "done", ms(r.latencyMs), r.promisedMs ? "Promised within " + ms(r.promisedMs) + "." : "Timed from request to full response.");
     set("t-check", passed ? "done" : "refunded", passed ? "Kept its promise" : (r.reason === "too_slow" ? "Too slow" : "Broke its promise"),
       passed ? "Status, speed and shape all match." : "Slower than the provider said it would be.");

@@ -2,7 +2,8 @@
 // Everything that differs between them lives here, so nothing else hardcodes a chain.
 const NETWORKS = {
   testnet: {
-    key: "testnet", label: "Monad testnet", chainName: "Monad Testnet", real: false,
+    key: "testnet", label: "Monad testnet", fullName: "Monad testnet", chainName: "Monad Testnet", real: false,
+    vault: "0xf3F9e32De47a143149F7398f25f264b98a01273C", minBond: "0.5", status: "Experimental, not audited",
     chainId: 10143, caip: "eip155:10143",
     rpc: "https://testnet-rpc.monad.xyz",
     usdc: "0x534b2f3A21130d7a60830c2Df862319e593943A3", usdcLabel: "test USDC",
@@ -10,7 +11,8 @@ const NETWORKS = {
     hardhat: "monadTestnet",
   },
   mainnet: {
-    key: "mainnet", label: "Monad", chainName: "Monad", real: true,
+    key: "mainnet", label: "Monad mainnet", fullName: "Monad mainnet", chainName: "Monad", real: true,
+    vault: "0x93188873562a01344d3C5f0dCBFc3D6F2E482B29", minBond: "1", status: "Beta, not audited",
     chainId: 143, caip: "eip155:143",
     rpc: "https://rpc.monad.xyz",
     usdc: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", usdcLabel: "USDC",
@@ -30,9 +32,13 @@ function networkFromEnv(env = process.env) {
     ...base,
     rpc: rpcOverride || base.rpc,
     usdc: env.USDC_ADDRESS || base.usdc,
+    vault: env.VAULT_ADDRESS || base.vault,
     explorer: (env.EXPLORER_URL || base.explorer).replace(/\/+$/, ""),
     facilitatorUrl: env.FACILITATOR_URL || FACILITATOR,
   };
 }
 
-module.exports = { NETWORKS, networkFromEnv, FACILITATOR };
+/// The profile for a CAIP-2 id such as "eip155:143", or null if it is not one of ours.
+const networkByCaip = (caip) => Object.values(NETWORKS).find((n) => n.caip === caip) || null;
+
+module.exports = { NETWORKS, networkFromEnv, networkByCaip, FACILITATOR };
