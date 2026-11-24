@@ -19,6 +19,7 @@ const VAULT_ABI = [
   "function paused() view returns (bool)",
   "function minProviderBond() view returns (uint256)",
   "function maxClaimPayout() view returns (uint256)",
+  "function maxDailySlashBps() view returns (uint16)",
   "function unbondingDelay() view returns (uint64)",
   "function slashFeeBps() view returns (uint16)",
 ];
@@ -108,6 +109,11 @@ async function preflight(c) {
   if (owner === arbiter) bad("The owner and the arbiter are the same wallet. The arbiter key sits on a server, so whoever breaks in would own the vault. Redeploy with separate wallets.");
   else ok("the owner and the arbiter are different wallets");
   if (paused) bad("The vault is paused.");
+  const dailyBps = await vault.maxDailySlashBps().catch(() => null);
+  facts.dailyBps = dailyBps;
+  if (dailyBps === null) bad("This vault has no daily refund limit: a stolen arbiter key could empty every bond in minutes. Deploy the current contract (npm run deploy:mainnet) and use that vault.");
+  else if (Number(dailyBps) === 10_000) warn("The daily refund limit is switched off on this vault.");
+  else ok(`refunds against one provider stop for the day at ${Number(dailyBps) / 100}% of its cover`);
   if (maxClaim > minBond) warn(`One refund can take ${fmt(maxClaim)}, more than the minimum bond. A stolen arbiter key could drain bonds faster.`);
   if (c.net.real && minBond > 100_000_000n) warn(`The minimum bond is ${fmt(minBond)}. For an unaudited beta, keep it small.`);
   if (c.wallet) {

@@ -16,6 +16,7 @@ describe("SuretyVault", () => {
     );
     const v = await vault.getAddress();
     await vault.setMaxClaimPayout(usd(100_000)); // most tests use big round payouts
+    await vault.setMaxDailySlashBps(10_000); // and are not about the daily limit (tested on its own below)
     for (const s of [provider, backerA, backerB, stranger]) {
       await usdc.mint(s.address, usd(10_000));
       await usdc.connect(s).approve(v, ethers.MaxUint256);
@@ -248,6 +249,107 @@ describe("SuretyVault", () => {
       await expect(vault.connect(stranger).setArbiter(stranger.address)).to.be.revertedWithCustomError(
         vault, "OwnableUnauthorizedAccount"
       );
+    });
+  });
+
+  // What a stolen arbiter key could take: bounded per claim and per provider per day.
+  describe("refund limits", () => {
+    const DAY = 86_400;
+    async function limited() {
+      const [owner, arbiter, treasury, provider, backer, agent, other] = await ethers.getSigners();
+      const usdc = await (await ethers.getContractFactory("MockUSDC")).deploy();
+      const vault = await (await ethers.getContractFactory("SuretyVault")).deploy(
+        await usdc.getAddress(), owner.address, arbiter.address, treasury.address, usd(1), DELAY, FEE_BPS
+      );
+      for (const s of [provider, backer, other]) {
+        await usdc.mint(s.address, usd(1_000));
+        await usdc.connect(s).approve(await vault.getAddress(), ethers.MaxUint256);
+      }
+      await vault.connect(provider).register("ipfs://sla");
+      await vault.connect(provider).depositBond(usd(10));
+      // Start each test just after midnight UTC so the day boundary is where the test puts it.
+      const now = await time.latest();
+      await time.increaseTo(now - (now % DAY) + DAY + 60);
+      let n = 0;
+      const claim = (amount, who = provider) => vault.connect(arbiter).payClaim(ethers.id(`limit-${n++}`), who.address, agent.address, usd(amount), ethers.ZeroHash);
+      return { owner, arbiter, treasury, provider, backer, agent, other, usdc, vault, claim };
+    }
+
+    it("a new vault caps one claim at 5% of the minimum bond and a day at 20% of cover", async () => {
+      const { vault, provider, claim } = await loadFixture(limited);
+      expect(await vault.maxClaimPayout()).to.equal(usd(0.05));
+      expect(await vault.maxDailySlashBps()).to.equal(2_000n);
+      expect(await vault.dailyAllowance(provider.address)).to.equal(usd(2)); // 20% of the 10 USDC bond
+      expect(await vault.isCovered(provider.address)).to.equal(true);
+      await expect(claim(0.06)).to.be.revertedWithCustomError(vault, "PayoutTooLarge");
+    });
+
+    it("stops paying once the day's limit is reached, and says so before anyone pays", async () => {
+      const { vault, usdc, agent, provider, claim } = await loadFixture(limited);
+      // Each full claim takes 0.05 + 5% fee = 0.0525. The limit is 2 USDC, so the 39th claim crosses it.
+      for (let i = 0; i < 38; i++) await claim(0.05);
+      expect(await vault.dailyAllowance(provider.address)).to.equal(usd(2) - usd(0.0525) * 38n);
+      expect(await vault.isCovered(provider.address)).to.equal(true);
+      await claim(0.05); // crosses the line and is still paid in full
+      expect(await vault.dailyAllowance(provider.address)).to.equal(0n);
+      expect(await vault.isCovered(provider.address)).to.equal(false);
+      expect(await vault.isActive(provider.address)).to.equal(true); // bonded, just not payable again today
+      await expect(claim(0.001)).to.be.revertedWithCustomError(vault, "DailyLimitReached").withArgs(usd(2));
+      // The worst a stolen key could do in one day: the limit plus one claim.
+      expect(await usdc.balanceOf(agent.address)).to.equal(usd(0.05) * 39n);
+      expect((await vault.providers(provider.address)).bond).to.equal(usd(10) - usd(0.0525) * 39n);
+      expect(usd(0.0525) * 39n).to.be.at.most(usd(2) + usd(0.0525));
+    });
+
+    it("a claim refused today can be paid tomorrow, when the limit starts again from the smaller cover", async () => {
+      const { vault, provider, arbiter, agent, claim } = await loadFixture(limited);
+      for (let i = 0; i < 39; i++) await claim(0.05);
+      const held = ethers.id("held-over");
+      const pay = () => vault.connect(arbiter).payClaim(held, provider.address, agent.address, usd(0.01), ethers.ZeroHash);
+      await expect(pay()).to.be.revertedWithCustomError(vault, "DailyLimitReached");
+      expect(await vault.claimPaid(held)).to.equal(false);
+      await time.increase(DAY);
+      const cover = await vault.coverOf(provider.address);
+      expect(await vault.dailyAllowance(provider.address)).to.equal((cover * 2_000n) / 10_000n);
+      await pay();
+      expect(await vault.claimPaid(held)).to.equal(true);
+      expect(await vault.dailyAllowance(provider.address)).to.equal((cover * 2_000n) / 10_000n - usd(0.0105));
+    });
+
+    it("counts each provider on its own, and backing raises the limit from the next day", async () => {
+      const { vault, provider, other, backer, claim } = await loadFixture(limited);
+      await vault.connect(other).register("ipfs://other");
+      await vault.connect(other).depositBond(usd(2));
+      for (let i = 0; i < 39; i++) await claim(0.05);
+      await claim(0.05, other); // the first provider being used up does not touch the second
+      expect(await vault.isCovered(other.address)).to.equal(true);
+      await vault.connect(backer).back(provider.address, usd(100));
+      expect(await vault.isCovered(provider.address)).to.equal(false); // a top-up cannot reopen today
+      await time.increase(DAY);
+      expect(await vault.dailyAllowance(provider.address)).to.equal(((await vault.coverOf(provider.address)) * 2_000n) / 10_000n);
+    });
+
+    it("only the owner can change the limits, within range, and 10000 switches the daily limit off", async () => {
+      const { vault, owner, arbiter, provider, claim } = await loadFixture(limited);
+      await expect(vault.connect(arbiter).setMaxDailySlashBps(10_000)).to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount");
+      await expect(vault.connect(arbiter).setMaxClaimPayout(usd(100))).to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount");
+      await expect(vault.connect(owner).setMaxDailySlashBps(0)).to.be.revertedWithCustomError(vault, "BpsOutOfRange");
+      await expect(vault.connect(owner).setMaxDailySlashBps(10_001)).to.be.revertedWithCustomError(vault, "BpsOutOfRange");
+      await expect(vault.connect(owner).setMaxDailySlashBps(500)).to.emit(vault, "MaxDailySlashBpsSet").withArgs(500);
+      expect(await vault.dailyAllowance(provider.address)).to.equal(usd(0.5));
+      for (let i = 0; i < 10; i++) await claim(0.05);
+      await expect(claim(0.05)).to.be.revertedWithCustomError(vault, "DailyLimitReached");
+      await vault.connect(owner).setMaxDailySlashBps(10_000);
+      for (let i = 0; i < 60; i++) await claim(0.05); // far past any daily share
+      expect(await vault.isCovered(provider.address)).to.equal(true);
+    });
+
+    it("the owner can pause, which stops every refund at once", async () => {
+      const { vault, owner, claim } = await loadFixture(limited);
+      await vault.connect(owner).pause();
+      await expect(claim(0.01)).to.be.revertedWithCustomError(vault, "EnforcedPause");
+      await vault.connect(owner).unpause();
+      await claim(0.01);
     });
   });
 });

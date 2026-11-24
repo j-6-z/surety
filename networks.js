@@ -12,7 +12,7 @@ const NETWORKS = {
   },
   mainnet: {
     key: "mainnet", label: "Monad mainnet", fullName: "Monad mainnet", chainName: "Monad", real: true,
-    vault: "0x93188873562a01344d3C5f0dCBFc3D6F2E482B29", minBond: "1", status: "Beta, not audited",
+    vault: "0x8b8d4a18D9abB59Cc499c62DC46032A1AbB95415", minBond: "1", status: "Beta, not audited",
     chainId: 143, caip: "eip155:143",
     rpc: "https://rpc.monad.xyz",
     usdc: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", usdcLabel: "USDC",

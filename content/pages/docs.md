@@ -132,5 +132,9 @@ Backers use `back(provider, amount)`, `requestUnstake`, `cancelUnstake` and `com
 - Only the x402 `exact` payment scheme is handled.
 - The relay reads the whole response to check it, so streaming endpoints are not supported.
 - Your SLA document is re-read about once a minute.
+{{#mainnet}}
+- One refund is capped at 5% of the minimum bond ({{minBond}} USDC), so a call priced above that cannot be refunded yet.
+- Refunds against one provider stop for the day once they reach 20% of that provider's cover. From then until midnight UTC the relay reports the provider as `uncovered`, so check the verdict on the unpaid first leg before your agent pays.
+{{/mainnet}}
 
 The full source, with tests, is on [GitHub](https://github.com/j-6-z/surety).

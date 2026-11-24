@@ -35,6 +35,7 @@ describe("SuretyVault invariants (randomised)", function () {
       );
       const v = await vault.getAddress();
       await vault.setMaxClaimPayout(usd(1_000_000));
+      if (seed % 2 === 0) await vault.setMaxDailySlashBps(10_000); // half the seeds run with the daily limit on
       for (const s of [...provs, ...backers]) {
         await usdc.mint(s.address, usd(1_000_000));
         await usdc.connect(s).approve(v, ethers.MaxUint256);

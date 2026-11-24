@@ -18,6 +18,9 @@ async function startLocalStack({ price = usd(2), bond = usd(200), backing = usd(
     await usdc.getAddress(), owner.address, arbiter.address, treasury.address, usd(100), 7 * 86400, 500
   );
   const vaultAddress = await vault.getAddress();
+  // These stacks test the relay, not the vault's refund limits, so both are opened right up.
+  await vault.setMaxDailySlashBps(10_000);
+  await vault.setMaxClaimPayout(usd(100));
   for (const s of [providerOp, backer, agent]) {
     await usdc.mint(s.address, usd(1_000));
     await usdc.connect(s).approve(vaultAddress, ethers.MaxUint256);

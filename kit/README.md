@@ -35,6 +35,7 @@ copy .env.example .env        (macOS/Linux: cp .env.example .env)
 - A handler still running with 2 seconds of its promise left is cut off with an error. The caller is not charged, so being slow costs you a sale and nothing from your bond. Change the margin with `settleReserveMs`, or set `guard: false` on an endpoint.
 - A handler that throws answers with an error and charges nobody. Throw when you cannot answer properly.
 - `validate` runs before payment. Reject bad input there.
+- On mainnet one refund is capped at 5% of the vault's minimum bond. Price a call above that and it cannot be refunded, which agents can see.
 - `PRIVATE_KEY` stays on your computer. Never put it on the host, never commit `.env`.
 
 Runs on Monad testnet by default. Set `SURETY_NETWORK=mainnet` (in `.env` and on your host) for real USDC. The vault contract is unaudited, so use a wallet that holds nothing you can't afford to lose.

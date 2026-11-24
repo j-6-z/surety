@@ -19,8 +19,10 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 ///           must be completed inside a short window. Funds queued for exit stop
 ///           counting toward a provider's active status and committed cover, so an
 ///           exit is always visible before it happens.
-/// @dev The arbiter is a single trusted address for now. It can move at most
-///      `maxClaimPayout` (plus fee) per claim.
+/// @dev The arbiter is a single trusted address for now. What it can move is bounded twice:
+///      at most `maxClaimPayout` (plus fee) per claim, and per provider per UTC day at most
+///      `maxDailySlashBps` of that provider's cover, plus the one claim that crosses the line.
+///      So a stolen arbiter key drains slowly, and the owner has time to pause and replace it.
 contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
@@ -46,6 +48,13 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
         uint64 readyAt;
     }
 
+    /// @dev One slot per provider: what has been slashed so far in the current UTC day.
+    struct DailySlash {
+        uint32 day; // days since the Unix epoch
+        uint112 slashed; // payouts plus fees taken this day
+        uint112 startCover; // the provider's cover when the day's first claim arrived
+    }
+
     // ---------------------------------------------------------------- storage
 
     IERC20 public immutable usdc;
@@ -57,6 +66,8 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
     uint256 public constant MIN_BACKING_FOR_REWARDS = 1e6; // 1 USDC
     /// @notice A matured exit must be completed within this long, or requested again.
     uint64 public constant EXIT_WINDOW = 3 days;
+    /// @notice A new vault lets one claim take at most this share of the minimum bond.
+    uint256 public constant DEFAULT_CLAIM_SHARE_BPS = 500; // 5%
 
     address public arbiter;
     address public treasury;
@@ -64,11 +75,13 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
     uint256 public maxClaimPayout; // cap on a single claim's payout
     uint64 public unbondingDelay; // seconds
     uint16 public slashFeeBps; // protocol cut taken on top of each payout, from the slashed funds
+    uint16 public maxDailySlashBps; // share of a provider's cover that claims may take per UTC day
 
     mapping(address => Provider) public providers;
     mapping(address => mapping(address => uint256)) public backerShares; // provider => backer => shares
     mapping(address => mapping(address => Unstake)) public pendingUnstake; // provider => backer => request
     mapping(bytes32 => bool) public claimPaid; // claimId => paid
+    mapping(address => DailySlash) public dailySlash; // provider => today's running total
 
     // ----------------------------------------------------------------- events
 
@@ -97,6 +110,7 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
     event TreasurySet(address treasury);
     event ParamsSet(uint256 minProviderBond, uint64 unbondingDelay, uint16 slashFeeBps);
     event MaxClaimPayoutSet(uint256 maxClaimPayout);
+    event MaxDailySlashBpsSet(uint16 maxDailySlashBps);
 
     // ----------------------------------------------------------------- errors
 
@@ -116,6 +130,8 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
     error NoBackers();
     error FeeTooHigh();
     error DelayOutOfRange();
+    error DailyLimitReached(uint256 limit);
+    error BpsOutOfRange();
 
     // ------------------------------------------------------------ constructor
 
@@ -134,7 +150,10 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
         arbiter = _arbiter;
         treasury = _treasury;
         minProviderBond = _minProviderBond;
-        maxClaimPayout = _minProviderBond; // a healthy bond always covers one full claim
+        // Paid API calls cost cents. One claim may take 5% of the minimum bond, and all of a day's
+        // claims a fifth of the provider's cover, until the owner decides otherwise.
+        maxClaimPayout = (_minProviderBond * DEFAULT_CLAIM_SHARE_BPS) / BPS;
+        maxDailySlashBps = 2_000;
         unbondingDelay = _unbondingDelay;
         slashFeeBps = _slashFeeBps;
     }
@@ -301,6 +320,7 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
             if (payout > cover) payout = cover;
             fee = cover - payout;
         }
+        _countTowardDailyLimit(provider, cover, payout + fee);
         (uint256 fromBond, uint256 fromBackers) = _slash(p, payout + fee);
         p.claimsPaid += uint128(payout);
         p.claimCount += 1;
@@ -329,6 +349,24 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
     function isActive(address provider) public view returns (bool) {
         Provider storage p = providers[provider];
         return p.registered && p.bond - p.bondPendingWithdraw >= minProviderBond;
+    }
+
+    /// @notice How much more can be paid out against this provider today (payouts plus fees).
+    ///         While this is above zero the next claim is paid in full, even if it crosses the line.
+    function dailyAllowance(address provider) public view returns (uint256) {
+        Provider storage p = providers[provider];
+        DailySlash storage d = dailySlash[provider];
+        if (maxDailySlashBps == BPS || d.day != uint32(block.timestamp / 1 days)) {
+            return ((uint256(p.bond) + p.backingAssets) * maxDailySlashBps) / BPS;
+        }
+        uint256 limit = (uint256(d.startCover) * maxDailySlashBps) / BPS;
+        return limit > d.slashed ? limit - d.slashed : 0;
+    }
+
+    /// @notice Active, and today's claims have not used up the daily limit. A failed call to a
+    ///         provider for which this is false would NOT be refunded today. Check this before paying.
+    function isCovered(address provider) external view returns (bool) {
+        return isActive(provider) && dailyAllowance(provider) != 0;
     }
 
     function backerAssets(address provider, address backer) external view returns (uint256) {
@@ -366,6 +404,13 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
         emit MaxClaimPayoutSet(_maxClaimPayout);
     }
 
+    /// @notice Share of a provider's cover that claims may take per UTC day. 10000 turns the limit off.
+    function setMaxDailySlashBps(uint16 _maxDailySlashBps) external onlyOwner {
+        if (_maxDailySlashBps == 0 || _maxDailySlashBps > BPS) revert BpsOutOfRange();
+        maxDailySlashBps = _maxDailySlashBps;
+        emit MaxDailySlashBpsSet(_maxDailySlashBps);
+    }
+
     function pause() external onlyOwner {
         _pause();
     }
@@ -377,6 +422,23 @@ contract SuretyVault is Ownable2Step, Pausable, ReentrancyGuard {
     // --------------------------------------------------------------- internal
 
     /// @dev Takes `total` from the bond first, then from backers. Caller ensures total <= cover.
+    /// @dev Reverts once a provider's claims for the UTC day have reached the daily limit.
+    ///      The claim that crosses the line is still paid in full, so `dailyAllowance > 0`
+    ///      always means "the next claim will be paid". A reverted claim can be paid on a later day.
+    function _countTowardDailyLimit(address provider, uint256 cover, uint256 amount) private {
+        if (maxDailySlashBps == BPS) return; // limit switched off
+        DailySlash storage d = dailySlash[provider];
+        uint32 today = uint32(block.timestamp / 1 days);
+        if (d.day != today) {
+            d.day = today;
+            d.slashed = 0;
+            d.startCover = cover.toUint112();
+        }
+        uint256 limit = (uint256(d.startCover) * maxDailySlashBps) / BPS;
+        if (d.slashed >= limit) revert DailyLimitReached(limit);
+        d.slashed = (uint256(d.slashed) + amount).toUint112();
+    }
+
     function _slash(Provider storage p, uint256 total) private returns (uint256 fromBond, uint256 fromBackers) {
         uint256 bond = p.bond;
         fromBond = total < bond ? total : bond;

@@ -201,7 +201,7 @@ ${nav({ current: "home", repoUrl })}
       <li id="t-outcome" class="outcome"><div class="n"><span class="pip"></span>Outcome</div><div class="v">&nbsp;</div><div class="d">Pass, or a refund from the bond.</div></li>
     </ol>
     <p class="verdict" id="verdict" role="status">Nothing run yet in this visit. Pick a call.</p>
-    <p class="fine">Surety's own test wallet pays for demo calls. Fresh runs are spaced out, so a repeat click may show the run from a moment ago.</p>
+    <p class="fine">Surety's own ${NET.real ? "wallet" : "test wallet"} pays for demo calls. Fresh runs are spaced out, so a repeat click may show the run from a moment ago.</p>
   </div>
 </div>
 

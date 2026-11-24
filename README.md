@@ -127,7 +127,8 @@ It is a guardrail inside the agent's process, not a vault: it does not protect a
 - A provider is active only while its bond, not counting any amount queued for exit, is at or above the minimum. Inactive providers are not covered.
 - Bond and backing wait out an unbonding delay (7 days by default, always between 1 and 30) and stay slashable while they wait.
 - A matured exit must be completed within 3 days or requested again, so nobody can hold an instant exit open.
-- A single claim is capped at `maxClaimPayout`. If cover runs short, the agent gets what is there and the protocol fee shrinks first.
+- A single claim is capped at `maxClaimPayout` (5% of the minimum bond on a new vault). If cover runs short, the agent gets what is there and the protocol fee shrinks first.
+- Claims against one provider stop for the UTC day once they reach `maxDailySlashBps` of its cover (20% on a new vault). The claim that crosses the line is still paid. `isCovered` turns false until the next day, and the relay reports the provider as uncovered. This bounds what a stolen arbiter key can take while the owner pauses the vault and replaces it. The testnet vault predates this limit.
 - The protocol fee (5% by default, capped at 10%) is taken on top of each payout, from the slashed funds.
 
 ## Run it on Monad testnet

@@ -68,7 +68,7 @@ async function main() {
   console.log({ usdc, owner, arbiter, treasury, minBond: minBond.toString(), delay: delay.toString(), feeBps });
   if (mainnet) {
     console.log("\nNext: put VAULT_ADDRESS in .env, then run  npm run check:mainnet");
-    console.log("The largest single refund this vault will pay is the minimum bond. Only the owner can change that.");
+    console.log("One refund can take at most 5% of the minimum bond, and a day's refunds at most 20% of a provider's cover. Only the owner can change that.");
   }
 }
 

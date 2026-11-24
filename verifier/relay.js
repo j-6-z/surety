@@ -19,6 +19,7 @@ const { assertPublicUrl } = require("./netguard");
 const VAULT_ABI = [
   "function providers(address) view returns (bool registered, uint64 bondReadyAt, uint64 claimCount, uint128 bond, uint128 bondPendingWithdraw, uint128 backingAssets, uint128 claimsPaid, uint256 backingShares, uint256 backingSharesPending, string metadataURI)",
   "function isActive(address) view returns (bool)",
+  "function isCovered(address) view returns (bool)",
   "function coverOf(address) view returns (uint256)",
   "function committedCoverOf(address) view returns (uint256)",
   "function minProviderBond() view returns (uint256)",
@@ -107,9 +108,25 @@ function createRelay(o) {
   async function isActive(addr) {
     const hit = statusCache.get(addr);
     if (hit && Date.now() - hit.at < statusTtlMs) return hit.active;
-    const active = await vault.isActive(addr);
+    const active = await covered(addr);
     statusCache.set(addr, { at: Date.now(), active });
     return active;
+  }
+  // Newer vaults also stop covering a provider once the day's refund limit is used up.
+  // A vault deployed before that limit existed only knows isActive.
+  let hasDailyLimit = null;
+  async function covered(addr) {
+    if (hasDailyLimit !== false) {
+      try {
+        const yes = await vault.isCovered(addr);
+        hasDailyLimit = true;
+        return yes;
+      } catch (e) {
+        if (hasDailyLimit) throw e; // a real read failure, not an old vault
+        hasDailyLimit = false;
+      }
+    }
+    return vault.isActive(addr);
   }
 
   // ---- claims are sent one at a time so the arbiter's nonces never collide
@@ -149,7 +166,7 @@ function createRelay(o) {
   async function trust(addr) {
     const [p, active, cover, minBond] = await Promise.all([
       vault.providers(addr),
-      vault.isActive(addr),
+      covered(addr),
       vault.committedCoverOf(addr),
       vault.minProviderBond(),
     ]);

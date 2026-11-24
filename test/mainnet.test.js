@@ -116,7 +116,8 @@ describe("Mainnet readiness", function () {
       expect(r.problems).to.deep.equal([]);
       expect(r.tokenDomain).to.deep.equal({ name: "Mock USDC", version: "2" });
       expect(r.facts.minBond).to.equal(usd(1));
-      expect(r.facts.maxClaim).to.equal(usd(1));
+      expect(r.facts.maxClaim).to.equal(usd(0.05)); // 5% of the minimum bond
+      expect(r.facts.dailyBps).to.equal(2_000n);
     });
 
     it("catches an owner key on the server, a shared owner and arbiter, and the wrong arbiter", async () => {
@@ -168,7 +169,7 @@ describe("What the site says on each network", function () {
   const saved = { ...NET };
   afterEach(() => useNetwork(saved));
 
-  const TESTNET_WORDS = /testnet|test usdc|test funds|faucet|10143|0x534b2f3A|0xf3F9e32D|no value/i;
+  const TESTNET_WORDS = /testnet|test usdc|test funds|test wallet|test network|test mon\b|faucet|10143|0x534b2f3A|0xf3F9e32D|no value/i;
   const pagesFor = (profile) => {
     useNetwork(profile);
     const { landingPage } = require("../marketdata/landing");
@@ -222,5 +223,35 @@ describe("What the site says on each network", function () {
     } finally {
       await new Promise((r) => server.close(r));
     }
+  });
+});
+
+describe("Taking a bond out of an old vault", function () {
+  this.timeout(60_000);
+  it("queues the whole bond, refuses to collect early, and collects once the wait is over", async () => {
+    const { time } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
+    const { withdrawBond } = require("../scripts/withdraw-bond");
+    const [owner, arbiter, treasury, prov, stranger] = await ethers.getSigners();
+    const usdc = await (await ethers.getContractFactory("MockUSDC")).deploy();
+    const vault = await (await ethers.getContractFactory("SuretyVault")).deploy(await usdc.getAddress(), owner.address, arbiter.address, treasury.address, usd(1), 7 * 86400, 500);
+    const vaultAddress = await vault.getAddress();
+    await usdc.mint(prov.address, usd(2));
+    await usdc.connect(prov).approve(vaultAddress, usd(2));
+    await vault.connect(prov).register("x");
+    await vault.connect(prov).depositBond(usd(1.1));
+    const chainNow = async () => await time.latest();
+    const run = async (action, wallet = prov) => withdrawBond({ wallet, vaultAddress, action, log() {}, now: ((t) => () => t)(await chainNow()) }).then((p) => p, (e) => e.message);
+
+    expect((await run()).bond).to.equal(usd(1.1)); // looking changes nothing
+    expect(await run("complete")).to.contain("Nothing is queued");
+    expect(await run("request", stranger)).to.contain("no listing");
+    expect((await run("request")).bondPendingWithdraw).to.equal(usd(1.1));
+    expect(await vault.isActive(prov.address)).to.equal(false);
+    expect(await run("complete")).to.contain("Not yet");
+    await time.increase(7 * 86400 + 1);
+    const before = await usdc.balanceOf(prov.address);
+    expect((await run("complete")).bond).to.equal(0n);
+    expect((await usdc.balanceOf(prov.address)) - before).to.equal(usd(1.1));
+    expect(await run("request")).to.contain("no bond left");
   });
 });

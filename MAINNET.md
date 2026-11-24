@@ -11,7 +11,9 @@ Mainnet means real USDC. The vault contract has **not been audited**. This guide
 | **Provider** | Lists and bonds your own API | Your own computer, only when you run `set-host.js` |
 | **Deployer** | Deploys the contract once | A throwaway. Empty it afterwards |
 
-If the server is ever broken into, the attacker gets the arbiter key. With it they can pay out bonds as fake refunds, one refund at a time, each no larger than the minimum bond. The owner can pause the vault and replace the arbiter, which is why the owner key must be somewhere else.
+If the server is ever broken into, the attacker gets the arbiter key. With it they can pay out bonds as fake refunds, but slowly: one refund is capped at 5% of the minimum bond, and all refunds against one provider stop for the day at 20% of its cover. That gives the owner time to pause the vault and replace the arbiter, which is why the owner key must be somewhere else.
+
+Because of those caps, a call priced above 5% of the minimum bond cannot be refunded. Only the owner can raise either cap (`setMaxClaimPayout`, `setMaxDailySlashBps`).
 
 ## Steps
 
@@ -47,6 +49,5 @@ Three real paid calls of $0.001: one good, one slow, one broken. The two bad one
 
 - **The site's wording.** The pages, docs and FAQ still say testnet and test funds. They must be rewritten before the public site points at mainnet.
 - **An audit.** Until there is one, keep the minimum bond small and say "unaudited" wherever a provider would bond.
-- **Refund limits on-chain.** A stolen arbiter key is limited per refund, not per day. A daily limit needs a contract change.
 - **One relay.** You alone decide every verdict.
 - **Legal.** Whether holding other people's bonds needs registration where you operate is a question for a lawyer.

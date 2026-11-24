@@ -223,3 +223,61 @@ describe("Surety Guard (spending limits)", function () {
     expect(fs.readFileSync(logFile, "utf8").trim().split("\n")).to.have.length(4); // 3 payments and the block
   });
 });
+
+describe("Relay and the daily refund limit", function () {
+  this.timeout(60_000);
+
+  it("refunds until the limit is reached, then reports the provider as not covered so agents stop paying", async () => {
+    const [owner, arbiter, treasury, prov, payTo] = await ethers.getSigners();
+    const usdc = await (await ethers.getContractFactory("MockUSDC")).deploy();
+    const usdcAddr = await usdc.getAddress();
+    const vault = await (await ethers.getContractFactory("SuretyVault")).deploy(usdcAddr, owner.address, arbiter.address, treasury.address, usd(1), 7 * 86400, 500);
+    await vault.connect(owner).setMaxDailySlashBps(100); // 1% a day: 0.02 USDC of a 2 USDC bond
+    const { chainId } = await ethers.provider.getNetwork();
+    const network = `eip155:${chainId}`;
+    const agent = ethers.Wallet.createRandom().connect(ethers.provider);
+    await ethers.provider.send("hardhat_setBalance", [agent.address, "0x56BC75E2D63100000"]);
+    await usdc.mint(agent.address, usd(10));
+    await usdc.mint(prov.address, usd(10));
+    const facilitator = await startFakeFacilitator({ usdc, network, wallets: { [agent.address.toLowerCase()]: agent } });
+    const api = createBondedApi({
+      payTo: payTo.address, network, usdc: usdcAddr, price: "$0.01", settleReserveMs: 0, facilitatorUrl: `http://127.0.0.1:${facilitator.address().port}`,
+      endpoints: [{ path: "/slow", maxLatencyMs: 100, guard: false, handler: async () => (await sleep(250), { ok: true }) }],
+    });
+    await api.listen();
+    await usdc.connect(prov).approve(await vault.getAddress(), ethers.MaxUint256);
+    await vault.connect(prov).register(api.slaUrl());
+    await vault.connect(prov).depositBond(usd(2));
+    const relay = createRelay({
+      vaultAddress: await vault.getAddress(), usdcAddress: usdcAddr, signer: arbiter, allowInsecure: true, statusTtlMs: 0,
+      dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "surety-daily-")),
+    });
+    await new Promise((r) => relay.listen(0, "127.0.0.1", r));
+    const relayUrl = `http://127.0.0.1:${relay.address().port}`;
+    try {
+      const guard = createGuard({ relayUrl, token: usdcAddr, trustTtlMs: 0 }); // re-check the provider before every payment
+      const surety = createSuretyClient({ relayUrl, fetch: createPayingFetch(agent.privateKey, network, usdcAddr, "1000000", guard.fetch).fetch });
+      const before = await usdc.balanceOf(agent.address);
+      // Each refund takes 0.0105 from the bond. The limit is 0.02, so the second one crosses it.
+      for (let i = 0; i < 2; i++) {
+        const r = await surety.call(prov.address, "/slow");
+        expect(r.claim, `call ${i + 1}`).to.not.equal(null);
+      }
+      expect(await usdc.balanceOf(agent.address)).to.equal(before); // both refunded
+      expect(await vault.isCovered(prov.address)).to.equal(false);
+      expect((await surety.trust(prov.address)).active).to.equal(false);
+      // The guard now refuses to pay, so the agent loses nothing on a call that could not be refunded.
+      const e = await surety.call(prov.address, "/slow").then(() => null, (x) => x);
+      expect(e).to.be.instanceOf(SuretyGuardError);
+      expect(e.code).to.equal("provider_not_bonded");
+      expect(await usdc.balanceOf(agent.address)).to.equal(before);
+      // An agent with no guard is told on the free first leg, before it pays.
+      const probe = await fetch(`${relayUrl}/call/${prov.address}/slow`);
+      expect(probe.headers.get("x-surety-verdict")).to.equal("uncovered");
+    } finally {
+      await new Promise((r) => relay.close(r));
+      await api.close();
+      await new Promise((r) => facilitator.close(r));
+    }
+  });
+});
