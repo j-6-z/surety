@@ -5,7 +5,7 @@ nav: kit
 order: 4
 ---
 
-The kit is a small starter project. You describe your endpoints in one file. It handles the x402 paywall, publishes the promise Surety checks your calls against, and one command posts your bond. {{#testnet}}Everything runs on Monad testnet with test USDC.{{/testnet}}{{#mainnet}}This runs on Monad mainnet: your bond is real USDC, and the vault contract has not been audited. To practise first, the kit runs on testnet by default.{{/mainnet}}
+The kit is a small starter project, published on npm as [`surety-provider`](https://www.npmjs.com/package/surety-provider). You describe your endpoints in one file. It handles the x402 paywall, publishes the promise Surety checks your calls against, and one command posts your bond. {{#testnet}}Everything runs on Monad testnet with test USDC.{{/testnet}}{{#mainnet}}This runs on Monad mainnet: your bond is real USDC, and the vault contract has not been audited. To practise first, the kit runs on testnet by default.{{/mainnet}}
 
 ## What you need
 
@@ -21,12 +21,12 @@ The kit is a small starter project. You describe your endpoints in one file. It 
 ## 1. Get the kit
 
 ```
-npx degit j-6-z/surety/kit my-api
+npx surety-provider init my-api
 cd my-api
 npm install
 ```
 
-No `degit`? Download the [repository](https://github.com/j-6-z/surety) and copy the `kit` folder out. It does not depend on anything else in there.
+That creates a folder with a working `app.js`, an `.env.example` and the settings Vercel needs. Adding Surety to an API you already have? `npm install surety-provider` and see the [package page](https://www.npmjs.com/package/surety-provider).
 
 ## 2. Describe your endpoints
 
@@ -101,13 +101,13 @@ Run it again whenever your address changes. It only sends the transactions that 
 ## 6. Prove it
 
 ```
-npm run try -- https://your-api.example/v1/block
+npm run try -- https://your-api.example/v1/shout/hello
 ```
 
 That makes one real paid call through the relay and prints the verdict. You are now in the [provider directory](/providers/), and agents call you at:
 
 ```
-https://www.surety.buzz/call/<your wallet address>/v1/block
+https://www.surety.buzz/call/<your wallet address>/v1/shout/hello
 ```
 
 ## Getting your bond back

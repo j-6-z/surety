@@ -13,10 +13,12 @@ Settings are in `slither.config.json`: dependencies, test contracts and test fil
 
 | Severity | Count |
 | --- | --- |
-| High | 0 |
-| Medium | 1 |
-| Low | 4 |
-| Informational | 9 |
+| High | 0 (one reported in stage two, reviewed and suppressed; see below) |
+| Medium | 4 (1 vault, 3 stage two) |
+| Low | 11 |
+| Informational | 13 |
+
+The sections below go contract by contract. The vault's own figures are unchanged: 1 medium, 4 low, 9 informational.
 
 No finding led to a code change. The deployed contract is left byte-for-byte as it is on mainnet, so each finding is recorded here with the reason it stands.
 
@@ -45,6 +47,16 @@ Slither reports nothing of high or medium severity in `SuretyBeacon`, `SuretyMir
 **`timestamp`, low, two places** (`isCovered` and `_fresh` in the mirror). Freshness is a comparison against block time by design. The window is at least a minute and an hour by default, so seconds of drift or validator nudging change nothing that matters.
 
 **`naming-convention`, informational, one place.** `setMaxAge(_maxAge)`. Style only.
+
+## Stage two: router and outpost
+
+**`reentrancy-balance`, high, one place, reviewed and suppressed inline** (`payClaimRemote` in the router). The router reads its USDC balance, calls the vault, and reads the balance again to learn what the vault really paid. Slither flags any balance read on both sides of an external call, because a re-entrant call could change it in between. Here it cannot: the function holds a re-entrancy lock, the callee is the vault, and the vault calls nothing but the token. Measuring the delta is deliberate, since the vault pays less than asked when cover is short. The line carries a `slither-disable-next-line` comment with this reason, which is why the tool's own count shows 0 high.
+
+**`incorrect-equality`, medium, two places.** `received == 0` in the router and `balance == 0` in `collect`. Both ask "is there anything at all?" about an amount, and neither is a gate an attacker gains from pushing off zero: sending the router or outpost USDC only gives money away.
+
+**`reentrancy-no-eth`, medium, one place** (the outpost's receive path). `totalPaid` is updated after the token transfer, because the update depends on whether the transfer succeeded. The path holds the re-entrancy lock, only the endpoint can enter it, and USDC has no transfer hooks.
+
+**Low and informational.** `calls-loop` twice and `reentrancy-benign` once (paying a batch is a loop of token calls by design; a refused transfer is caught, so one cannot fail the rest). `low-level-calls` once (the caught transfer). One `naming-convention`, one `unindexed-event-address` (`RelaySet`).
 
 ## Narrowing casts
 

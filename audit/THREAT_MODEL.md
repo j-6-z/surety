@@ -59,14 +59,32 @@ Each row says how far the control goes, and what is left over.
 | X8 | **Griefing by broadcasting** many reports | Each broadcast costs the caller a LayerZero fee. Batches are capped at 20. A delivery only writes storage. | None that costs anyone but the caller. |
 | X9 | **Replay** of a delivered message | The endpoint delivers each message once. If one were repeated, the mirror ignores a report that is not newer than what it holds. | None. |
 
+## Cross-chain, stage two: the router and the outpost
+
+`SuretyRouter` (Monad) and `SuretyOutpost` (Base) pay a refund on the chain the agent paid on. They are built and tested but **not deployed**. Unlike stage one these move money: the router holds settled refunds and the outpost holds a float.
+
+| # | Attack | What stops it | What is left |
+| --- | --- | --- | --- |
+| S1 | **The relay key is stolen** and used to file fake remote claims | The router can only call the vault's `payClaim`, so the vault's per-claim and per-day limits apply exactly as in T1. Only the relay can file; the owner can replace it. | The same bounded loss as T1. Fake claims can name any payee on Base. |
+| S2 | **The owner takes refunds that have not been sent** | `sweep` is capped at `reimbursable`, which only grows when a batch is sent. Queued money cannot be withdrawn by anyone. An invariant checks the router's balance always equals queued plus reimbursable. | None for queued money. |
+| S3 | **The owner takes reimbursement and never refills the float** | Nothing on-chain. A refund that cannot be paid becomes a credit that stays collectable. | Agents on Base hold credits that do not pay until the float is refilled. The provider was already slashed, so agents carry the loss. The operator is trusted to refill. |
+| S4 | **A forged message tells the outpost to pay an attacker** | Same three locks as X1: endpoint only, peer only, Monad endpoint id fixed at deploy. | The route's DVNs are trusted. A forged message can take the whole spare float, so the float should be kept small. |
+| S5 | **The owner withdraws float that agents are owed** | `withdrawFloat` is capped at spare float (balance minus credits). | The owner can drain spare float before refunds arrive, which turns them into credits (S3). |
+| S6 | **One bad address blocks a batch** (USDC can refuse a transfer) | A refused transfer is caught and becomes a credit; the rest of the batch is paid. | The blocked agent is paid only if the token later allows it. |
+| S7 | **A later refund jumps an earlier credit** | New refunds are paid from spare float only. | None. |
+| S8 | **A batch is sent with too little gas** | The router computes destination gas from the batch size, as the beacon does. A failed delivery changes nothing and can be retried. | Real USDC costs more gas per transfer than the test token; the default leaves a wide margin but is unproven on Base. |
+| S9 | **Re-entry through the token** | `payClaimRemote`, `flush`, `sweep`, `collect`, `withdrawFloat` and the receive path all hold a re-entrancy lock. USDC has no transfer hooks. | None with USDC. |
+| S10 | **Refunds sit in the queue** because nobody pays to flush | Anyone can flush, including the agent owed. | A small refund may not be worth the fee to its agent alone; it waits for the operator or for the queue to fill. |
+
 ## What has and has not been done
 
 Done:
 
-- 100% line, statement, branch and function coverage of `SuretyVault.sol` and the three cross-chain contracts from the Foundry suite.
+- 100% line, statement, branch and function coverage of `SuretyVault.sol` and all six cross-chain contracts from the Foundry suite.
 - Seven invariants checked over 25,600 random calls each, eight fuzz properties over 1,000 inputs each, fifteen unit tests for refusal paths.
 - For the cross-chain contracts: twenty-five unit tests and five fuzz properties, including delivery in arbitrary order.
-- A mutation check: 43 deliberate bugs planted one at a time (18 in the vault, 25 in the cross-chain contracts), all 43 caught (`npm run test:mutants`).
+- For stage two: twenty-two unit tests, three fuzz properties and four invariants over random sequences of claims, flushes, out-of-order deliveries, float changes and blocked addresses.
+- A mutation check: 77 deliberate bugs planted one at a time (18 in the vault, 25 in stage one, 34 in stage two), all 77 caught (`npm run test:mutants`).
 - Static analysis with Slither: no high-severity findings (see [SLITHER.md](SLITHER.md)).
 
 Not done:

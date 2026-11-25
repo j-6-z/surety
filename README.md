@@ -6,7 +6,7 @@ An API provider posts a USDC bond. Agents call the provider through the Surety r
 
 > **Status: beta, not audited.** Live on Monad mainnet with real USDC, and run by a single trusted relay. Bond only what you can afford to lose. See the [threat model](audit/THREAT_MODEL.md) and [Known limits](#known-limits).
 
-[![tests](https://github.com/j-6-z/surety/actions/workflows/test.yml/badge.svg)](https://github.com/j-6-z/surety/actions/workflows/test.yml) ![contract coverage](https://img.shields.io/badge/contract%20coverage-100%25-brightgreen) ![invariants](https://img.shields.io/badge/invariants-7%20passing-brightgreen) ![mutation check](https://img.shields.io/badge/planted%20bugs%20caught-43%2F43-brightgreen) ![slither](https://img.shields.io/badge/slither-0%20high-brightgreen)
+[![tests](https://github.com/j-6-z/surety/actions/workflows/test.yml/badge.svg)](https://github.com/j-6-z/surety/actions/workflows/test.yml) ![contract coverage](https://img.shields.io/badge/contract%20coverage-100%25-brightgreen) ![invariants](https://img.shields.io/badge/invariants-11%20passing-brightgreen) ![mutation check](https://img.shields.io/badge/planted%20bugs%20caught-77%2F77-brightgreen) ![slither](https://img.shields.io/badge/slither-0%20high-brightgreen)
 
 | | Mainnet | Testnet |
 | --- | --- | --- |
@@ -27,9 +27,9 @@ The contract has not been independently audited. This is what has been done inst
 | Invariants | 7 properties, each held over 256 random sequences of 100 calls | `npm run test:sol` |
 | Fuzz properties | 8, each over 1,000 random inputs | `npm run test:sol` |
 | Unit tests | 15, one for every way the vault refuses a call | `npm run test:sol` |
-| Mutation check | 43 bugs planted one at a time (18 in the vault, 25 cross-chain), 43 caught | `npm run test:mutants` |
-| Cross-chain contracts | 30 more tests, 100% coverage, delivery in any order fuzzed ([details](CROSSCHAIN.md)) | `npm run test:sol` |
-| Static analysis | Slither: 0 high, 1 medium (false positive), 4 low (accepted) | `slither .` |
+| Mutation check | 77 bugs planted one at a time (18 in the vault, 59 cross-chain), 77 caught | `npm run test:mutants` |
+| Cross-chain contracts | 59 more tests incl. 4 invariants, 100% coverage, delivery in any order fuzzed ([details](CROSSCHAIN.md)) | `npm run test:sol` |
+| Static analysis | Slither: 0 high after review, 4 medium (each explained in the [notes](audit/SLITHER.md)) | `slither .` |
 | Relay, x402, kit, guard, site and scripts | 131 JavaScript tests | `npm test` |
 
 The invariants, in plain words:
@@ -42,7 +42,7 @@ The invariants, in plain words:
 6. The contract's running total of a day's refunds always matches an independent count.
 7. The lifetime claim counters match the refunds really paid.
 
-Read next: [threat model](audit/THREAT_MODEL.md) (17 attacks on the vault and 9 on the cross-chain contracts, what stops each, what is left over) and [static analysis notes](audit/SLITHER.md) (every finding and why it stands).
+Read next: [threat model](audit/THREAT_MODEL.md) (17 attacks on the vault and 19 on the cross-chain contracts, what stops each, what is left over) and [static analysis notes](audit/SLITHER.md) (every finding and why it stands).
 
 The Solidity tests are in `test/foundry`. The first run downloads Foundry by itself (`scripts/forge.js`), so nothing needs installing by hand. Every push runs all of it in [GitHub Actions](https://github.com/j-6-z/surety/actions): the JavaScript tests, the Solidity tests, a gate that fails if contract coverage drops below 100%, Slither, and the mutation check. The first badge above is live; the other four show the figures those checks enforce.
 
@@ -91,7 +91,7 @@ npm run demo      # one healthy call, two refunded ones
 | Path | What it does |
 | --- | --- |
 | `contracts/SuretyVault.sol` | Bonds, backer staking, exit queue, claim payouts, protocol fee, pause |
-| `contracts/crosschain/` | `SuretyBeacon` and `SuretyMirror`: a provider's bond status carried from Monad to Base over LayerZero V2 ([CROSSCHAIN.md](CROSSCHAIN.md)) |
+| `contracts/crosschain/` | `SuretyBeacon` and `SuretyMirror`: a provider's bond status carried from Monad to Base over LayerZero V2. `SuretyRouter` and `SuretyOutpost`: refunds paid on Base (not deployed). See [CROSSCHAIN.md](CROSSCHAIN.md) |
 | `verifier/relay.js` | The relay: forwards calls, checks them against the SLA, proves the payment on-chain, files claims, serves trust scores |
 | `verifier/sla.js` | SLA document format and the checks |
 | `verifier/payment.js` | Reads the x402 settlement receipt and confirms the USDC transfer on-chain |
@@ -106,19 +106,20 @@ npm run demo      # one healthy call, two refunded ones
 
 ## For providers: the kit
 
-The fastest way to become a bonded provider is the starter in [`kit/`](kit/): one file for your endpoints, one command to post the bond. It stands alone, so you can copy the folder out.
+The fastest way to become a bonded provider is [`surety-provider`](https://www.npmjs.com/package/surety-provider) on npm: one file for your endpoints, one command to post the bond.
 
 ```
-npx degit j-6-z/surety/kit my-api
+npx surety-provider init my-api
 cd my-api && npm install
 npm start                                   # run it locally
+npm run check                               # time every endpoint against its promise
 npm run bond -- https://your-api.example    # list it and post the bond
-npm run try -- https://your-api.example/v1/block
+npm run try -- https://your-api.example/v1/shout/hello
 ```
 
-Walkthrough: [surety.buzz/kit](https://www.surety.buzz/kit/).
+Adding it to an API you already have: `npm install surety-provider`. Walkthrough: [surety.buzz/kit](https://www.surety.buzz/kit/).
 
-The same library is packaged for npm as `surety-provider` in [`packages/provider`](packages/provider), with a command line (`init`, `check`, `bond`, `try`) and TypeScript types. `kit/` carries a copy of its four library files so the starter works on its own; `npm run sync:kit` keeps them identical and a test fails if they drift.
+The package source is in [`packages/provider`](packages/provider), with a command line (`init`, `check`, `bond`, `try`) and TypeScript types. [`kit/`](kit/) is the same starter as a plain folder with its own copy of the four library files, for anyone who would rather read or copy the code than install a package; `npm run sync:kit` keeps the two identical and a test fails if they drift.
 
 ## For providers: the SLA document
 
@@ -238,7 +239,7 @@ AGENT_KEY=0x... node examples/call-api.js https://<your-host> <providerAddress>
 
 ## Across chains
 
-Bonds live on Monad; most x402 payments happen elsewhere. `SuretyBeacon` reads the vault and sends a provider's status over LayerZero V2 to `SuretyMirror` on Base, where a contract or agent can call `isCovered(provider)` before paying. Anyone can trigger a report; nobody can change what it says. Live on mainnet: beacon `0xf25b3F37a50fd9f938C836A8926ECC7786F958fe` on Monad, mirror `0x0593c77e43704C2a3f8512f3a4645ce57860FBED` on Base. Design, trust assumptions, limits and commands are in [CROSSCHAIN.md](CROSSCHAIN.md).
+Bonds live on Monad; most x402 payments happen elsewhere. `SuretyBeacon` reads the vault and sends a provider's status over LayerZero V2 to `SuretyMirror` on Base, where a contract or agent can call `isCovered(provider)` before paying. Anyone can trigger a report; nobody can change what it says. Live on mainnet: beacon `0xf25b3F37a50fd9f938C836A8926ECC7786F958fe` on Monad, mirror `0x0593c77e43704C2a3f8512f3a4645ce57860FBED` on Base. Stage two, paying refunds on Base through `SuretyRouter` and `SuretyOutpost`, is built and tested but not deployed. Design, trust assumptions, limits and commands are in [CROSSCHAIN.md](CROSSCHAIN.md).
 
 ## Known limits
 

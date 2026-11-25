@@ -269,7 +269,7 @@ if(c&&Date.now()-c.at<60000)show(c.d);else fetch("/providers.json").then(functio
     <p class="standfirst">Launch your own paid x402 API on Monad with a bond behind it. One file for your endpoints, one command to post the bond. About ten minutes.</p>
   </header>
   <div class="prose">
-<p>The kit is a small starter project. You describe your endpoints in one file. It handles the x402 paywall, publishes the promise Surety checks your calls against, and one command posts your bond. Everything runs on Monad testnet with test USDC.</p>
+<p>The kit is a small starter project, published on npm as <a href="https://www.npmjs.com/package/surety-provider"><code>surety-provider</code></a>. You describe your endpoints in one file. It handles the x402 paywall, publishes the promise Surety checks your calls against, and one command posts your bond. Everything runs on Monad testnet with test USDC.</p>
 <h2 id="what-you-need">What you need</h2>
 <ul>
 <li><p><a href="https://nodejs.org">Node.js</a> 18 or newer</p>
@@ -280,11 +280,11 @@ if(c&&Date.now()-c.at<60000)show(c.d);else fetch("/providers.json").then(functio
 </li>
 </ul>
 <h2 id="1-get-the-kit">1. Get the kit</h2>
-<pre><code>npx degit j-6-z/surety/kit my-api
+<pre><code>npx surety-provider init my-api
 cd my-api
 npm install
 </code></pre>
-<p>No <code>degit</code>? Download the <a href="https://github.com/j-6-z/surety">repository</a> and copy the <code>kit</code> folder out. It does not depend on anything else in there.</p>
+<p>That creates a folder with a working <code>app.js</code>, an <code>.env.example</code> and the settings Vercel needs. Adding Surety to an API you already have? <code>npm install surety-provider</code> and see the <a href="https://www.npmjs.com/package/surety-provider">package page</a>.</p>
 <h2 id="2-describe-your-endpoints">2. Describe your endpoints</h2>
 <p>Open <code>app.js</code>. Each endpoint has a promise and a handler:</p>
 <pre><code class="language-js">{
@@ -340,10 +340,10 @@ npm install
 <p>This checks your API is reachable, has Surety confirm it can read your promise, lists you on the vault, and deposits the minimum bond. It approves exactly the amount it deposits. To bond more, add the total you want in USDC: <code>npm run bond -- https://your-api.example 5</code>.</p>
 <p>Run it again whenever your address changes. It only sends the transactions that are needed.</p>
 <h2 id="6-prove-it">6. Prove it</h2>
-<pre><code>npm run try -- https://your-api.example/v1/block
+<pre><code>npm run try -- https://your-api.example/v1/shout/hello
 </code></pre>
 <p>That makes one real paid call through the relay and prints the verdict. You are now in the <a href="/providers/">provider directory</a>, and agents call you at:</p>
-<pre><code>https://www.surety.buzz/call/&lt;your wallet address&gt;/v1/block
+<pre><code>https://www.surety.buzz/call/&lt;your wallet address&gt;/v1/shout/hello
 </code></pre>
 <h2 id="getting-your-bond-back">Getting your bond back</h2>
 <p>Withdrawals are queued, then released after the vault&#39;s waiting period. Your calls stop being covered as soon as a queued withdrawal takes you under the minimum. Use the <a href="/bond/">bond page</a> with the same wallet to withdraw.</p>

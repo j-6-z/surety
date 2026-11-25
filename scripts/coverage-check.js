@@ -2,7 +2,7 @@
 // SuretyVault.sol and the cross-chain contracts.   npm run coverage:sol:check
 const { forge } = require("./forge");
 
-const FILES = ["contracts/SuretyVault.sol", "contracts/crosschain/SuretyBeacon.sol", "contracts/crosschain/SuretyMirror.sol", "contracts/crosschain/CoverageCodec.sol"];
+const FILES = ["contracts/SuretyVault.sol", "contracts/crosschain/SuretyBeacon.sol", "contracts/crosschain/SuretyMirror.sol", "contracts/crosschain/CoverageCodec.sol", "contracts/crosschain/SuretyRouter.sol", "contracts/crosschain/SuretyOutpost.sol", "contracts/crosschain/RefundCodec.sol"];
 
 const run = forge(["coverage", "--report", "summary", "--no-match-coverage", "test|Mock"], { capture: true });
 const out = `${run.stdout}\n${run.stderr}`;

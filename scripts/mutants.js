@@ -15,8 +15,12 @@ const VAULT = "contracts/SuretyVault.sol";
 const BEACON = "contracts/crosschain/SuretyBeacon.sol";
 const MIRROR = "contracts/crosschain/SuretyMirror.sol";
 const CODEC = "contracts/crosschain/CoverageCodec.sol";
-// The cross-chain contracts have their own test contract; running only that keeps this quick.
-const TESTS = (file) => (file === VAULT ? ["test", "--no-match-contract", "CrosschainTest"] : ["test", "--match-contract", "CrosschainTest"]);
+const ROUTER = "contracts/crosschain/SuretyRouter.sol";
+const OUTPOST = "contracts/crosschain/SuretyOutpost.sol";
+const REFUNDS = "contracts/crosschain/RefundCodec.sol";
+// Each group of contracts has its own test contracts; running only those keeps this quick.
+const SUITE = { [BEACON]: "CrosschainTest", [MIRROR]: "CrosschainTest", [CODEC]: "CrosschainTest", [ROUTER]: "Settlement", [OUTPOST]: "Settlement", [REFUNDS]: "Settlement" };
+const TESTS = (file) => (SUITE[file] ? ["test", "--match-contract", SUITE[file]] : ["test", "--no-match-contract", "CrosschainTest|Settlement"]);
 
 // [what the bug is, the exact text to find, what to put in its place, which file (default: the vault)]
 const MUTANTS = [
@@ -66,9 +70,49 @@ const MUTANTS = [
   ["an unknown message version is accepted", "        if (version != VERSION) revert UnsupportedVersion(version);\n", "", CODEC],
   ["the allowance is read from the wrong bytes", "        r.dailyAllowance = uint128(bytes16(message[o + 53:o + 69]));", "        r.dailyAllowance = uint128(bytes16(message[o + 37:o + 53]));", CODEC],
   ["only the first report in a batch is read", "        uint256 o = HEADER_SIZE + index * REPORT_SIZE;", "        uint256 o = HEADER_SIZE;", CODEC],
+
+  ["anyone can file a remote claim", "    ) external onlyRelay nonReentrant returns (uint256 received) {", "    ) external nonReentrant returns (uint256 received) {", ROUTER],
+  ["anyone can file a local claim through the router", "        external\n        onlyRelay\n    {", "        external\n    {", ROUTER],
+  ["the router queues what was asked for, not what the vault paid", "        received = usdc.balanceOf(address(this)) - before;", "        received = payout;", ROUTER],
+  ["a refund is queued even though the vault paid nothing", "        if (received == 0) revert NothingReceived();\n", "", ROUTER],
+  ["a refund is queued for a chain with no outpost", "        _getPeerOrRevert(dstEid); // never queue for a chain with no outpost\n", "", ROUTER],
+  ["a refund to the zero address is queued", "        if (agent == address(0)) revert ZeroAddress();\n", "", ROUTER],
+  ["queued refunds can be swept by the owner", "        if (amount > reimbursable) revert MoreThanReimbursable(amount, reimbursable);\n        reimbursable -= amount;", "        reimbursable = amount > reimbursable ? 0 : reimbursable - amount;", ROUTER],
+  ["anyone can sweep the router", "    function sweep(address to, uint256 amount) external onlyOwner nonReentrant {", "    function sweep(address to, uint256 amount) external nonReentrant {", ROUTER],
+  ["a sent batch stays in the queue and is sent again", "        q.head += refunds;\n", "", ROUTER],
+  ["sent refunds are not made reimbursable", "        reimbursable += amount;\n", "", ROUTER],
+  ["the pending total is not reduced when a batch is sent", "        pendingTotal -= amount;\n", "", ROUTER],
+  ["no limit on the size of a refund batch", "        if (n > MAX_BATCH) n = MAX_BATCH;\n", "", ROUTER],
+  ["anyone can replace the relay", "    function setRelay(address _relay) external onlyOwner {", "    function setRelay(address _relay) external {", ROUTER],
+  ["refund gas does not grow with the batch", "uint256(g.perRefund) * count;", "uint256(g.perRefund);", ROUTER],
+  ["the refund gas settings have no upper bound", "base == 0 || base > MAX_BASE_GAS || perRefund == 0 || perRefund > MAX_GAS_PER_REFUND", "base == 0 || perRefund == 0", ROUTER],
+  ["the flusher's change is not returned", "MessagingFee(msg.value, 0), payable(msg.sender));", "MessagingFee(msg.value, 0), payable(address(0xdead)));", ROUTER],
+  ["the router's ownership moves in one step", "        Ownable2Step.transferOwnership(newOwner);\n    }\n\n    function _transferOwnership", "        Ownable._transferOwnership(newOwner);\n    }\n\n    function _transferOwnership", ROUTER],
+
+  ["the outpost accepts a peer on any chain", "        if (origin.srcEid != hubEid) revert NotFromHub(origin.srcEid);\n", "", OUTPOST],
+  ["a new refund is paid with money owed to an earlier credit", "        if (spareFloat() < amount) return false;", "        if (usdc.balanceOf(address(this)) < amount) return false;", OUTPOST],
+  ["one refused transfer stops the whole batch", "        return ok && (result.length == 0 || abi.decode(result, (bool)));", "        require(ok, \"transfer failed\");\n        return result.length == 0 || abi.decode(result, (bool));", OUTPOST],
+  ["a refund that cannot be paid is dropped", "                credit[agent] += amount;\n", "", OUTPOST],
+  ["credits are not added to the total owed", "                totalCredit += amount;\n", "", OUTPOST],
+  ["the owner can withdraw float that is owed to agents", "        if (amount > spare) revert MoreThanSpareFloat(amount, spare);\n", "", OUTPOST],
+  ["anyone can withdraw the float", "    function withdrawFloat(address to, uint256 amount) external onlyOwner nonReentrant {", "    function withdrawFloat(address to, uint256 amount) external nonReentrant {", OUTPOST],
+  ["collect pays whoever called it", "        usdc.safeTransfer(agent, paid);", "        usdc.safeTransfer(msg.sender, paid);", OUTPOST],
+  ["collect leaves the credit in place", "        credit[agent] = owed - paid;\n", "", OUTPOST],
+  ["collect does not reduce the total owed", "        totalCredit -= paid;\n", "", OUTPOST],
+  ["refunds paid on arrival are not counted", "                totalPaid += amount;\n", "", OUTPOST],
+  ["the outpost's ownership moves in one step", "        Ownable2Step.transferOwnership(newOwner);\n    }\n\n    function _transferOwnership", "        Ownable._transferOwnership(newOwner);\n    }\n\n    function _transferOwnership", OUTPOST],
+
+  ["a refund message with a ragged tail is accepted", "length < HEADER_SIZE + REFUND_SIZE || (length - HEADER_SIZE) % REFUND_SIZE != 0", "length < HEADER_SIZE + REFUND_SIZE", REFUNDS],
+  ["a refund message with no refunds is accepted", "length < HEADER_SIZE + REFUND_SIZE || (length - HEADER_SIZE) % REFUND_SIZE != 0", "length < HEADER_SIZE || (length - HEADER_SIZE) % REFUND_SIZE != 0", REFUNDS],
+  ["an unknown refund message version is accepted", "        if (version != VERSION) revert UnsupportedVersion(version);\n", "", REFUNDS],
+  ["the refund amount is read from the wrong bytes", "        amount = uint128(bytes16(message[o + 52:o + 68]));", "        amount = uint128(bytes16(message[o + 36:o + 52]));", REFUNDS],
+  ["only the first refund in a batch is read", "        uint256 o = HEADER_SIZE + index * REFUND_SIZE;", "        uint256 o = HEADER_SIZE;", REFUNDS],
 ];
 
 function main() {
+  // node scripts/mutants.js Router   runs only the bugs planted in files whose path contains "Router".
+  const only = process.argv[2];
+  if (only) for (let i = MUTANTS.length - 1; i >= 0; i--) if (!(MUTANTS[i][3] || VAULT).includes(only)) MUTANTS.splice(i, 1);
   const files = [...new Set(MUTANTS.map((m) => m[3] || VAULT))];
   const originals = Object.fromEntries(files.map((f) => [f, fs.readFileSync(path.join(ROOT, f), "utf8").replace(/\r\n/g, "\n")]));
   const restore = () => files.forEach((f) => fs.writeFileSync(path.join(ROOT, f), originals[f]));

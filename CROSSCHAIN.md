@@ -93,12 +93,59 @@ LayerZero addresses come from LayerZero's own deployment package (`@layerzerolab
 | Scripts | 9 JavaScript tests: deploy, re-run, resume after a half-finished deploy, send, read, DVN config encoding | `npm test` |
 | Static analysis | Slither: 0 high, 0 medium | `slither .` |
 
-## Next stage: refunds on the payer's chain
+## Stage two: refunds on the payer's chain
 
-Today an agent that pays on Base for a call that fails would be refunded on Monad. The plan for stage two:
+Status: built and tested against a mock endpoint. **Not deployed.** Deploying it means making a new contract the vault's arbiter, so it waits for the relay changes and a testnet run first.
 
-1. A router contract on Monad becomes the vault's arbiter (the vault already allows the owner to change it, so the vault itself does not change). The relay calls the router instead of the vault.
-2. For a payer on another chain, the router takes the refund from the vault and sends a LayerZero message to an outpost contract on that chain.
-3. The outpost pays the payer from a float it holds, and the float is topped up from what the router collected.
+Today an agent that pays on Base for a call that fails would be refunded on Monad. Stage two pays it on Base, with two more contracts and no change to the vault.
 
-That design adds a float to manage and a contract with authority over the vault, so it gets its own threat model and tests before any of it is deployed.
+```
+        Monad                                             Base
+  ┌─────────────┐ pays ┌──────────────┐   LayerZero   ┌───────────────┐ pays
+  │ SuretyVault │─────►│ SuretyRouter │──────────────►│ SuretyOutpost │─────► agent
+  └─────────────┘      └──────────────┘  batch of     └───────────────┘
+        ▲ arbiter = router   ▲ relay files claims      holds a float of USDC
+```
+
+1. **Settle on Monad.** `SuretyRouter` becomes the vault's arbiter (the vault already lets its owner change the arbiter). For a payer on Base, the relay calls `payClaimRemote`. The vault pays the router instead of the agent: the provider's bond is slashed at once and the money is set aside in a queue.
+2. **Deliver on Base.** `flush` sends up to 20 queued refunds in one LayerZero message. `SuretyOutpost` pays each agent from a float of USDC it holds.
+3. **Reimburse.** Once a batch is sent, the USDC behind it in the router becomes reimbursable, and the owner moves it across to top the float back up.
+
+A refund for a payer on Monad still goes straight through (`payClaim` on the router passes it to the vault unchanged).
+
+### Decisions, and why
+
+| Decision | Reason |
+| --- | --- |
+| Refunds are batched, not sent one by one | A LayerZero message cost about 22.8 MON on the day stage one went live, far more than a typical refund is worth. One message carries 20. |
+| Anyone can call `flush` and pay the fee | An agent never has to wait on the operator to get its money moving. |
+| The router queues what the vault really paid | The vault pays less than asked when a provider's cover is short. The router measures what arrived instead of trusting the figure it sent. |
+| Queued money is out of everyone's reach | The owner can take out only what is behind batches already sent. Checked by an invariant over random sequences. |
+| A refund the outpost cannot pay becomes a credit | An empty float, or a token that refuses one address, must not lose a refund or stop the other 19 in the batch. Anyone can call `collect(agent)` later; the money only ever goes to the agent. |
+| New refunds are paid from spare float only | An agent already waiting on a credit is not jumped by a later arrival, and the owner cannot withdraw float that credits have a claim on. |
+| The router adds no power over the vault | It can do exactly what the arbiter could: pay claims inside the vault's per-claim and per-day limits. The relay key moves from the vault to the router; the owner can replace it. |
+| Order of arrival does not matter | Refunds are independent, so unlike stage one there is nothing to sequence. Fuzzed with batches delivered in shuffled order. |
+
+### What it adds to the trust picture
+
+- **The float is fronted by the operator.** If the owner takes reimbursement from the router and never refills the outpost, agents on Base hold credits that do not pay. The provider was still slashed, so the loss falls on agents. This is the main new trust assumption.
+- **A delay.** A refund is settled on Monad immediately but reaches Base only when someone flushes.
+- **The same DVNs as stage one** now carry instructions to pay, not just a status. A forged message could drain the float, which is why the float should stay small.
+
+### Tests
+
+| Check | Result | Run it |
+| --- | --- | --- |
+| Unit tests | 22: settle, deliver, credits, a refused transfer, limits, every refusal, gas headroom | `npm run test:sol` |
+| Fuzz properties | 3, each over 1,000 inputs, including: every agent ends with exactly its refunds for any mix of claims, float and delivery order | `npm run test:sol` |
+| Invariants | 4, each over 256 random sequences of 100 actions: the router holds exactly what it owes; every refund is in exactly one place; each agent gets exactly its refunds; no rule broken along the way | `npm run test:sol` |
+| Coverage | 100% of lines, statements, branches and functions of all three contracts | `npm run coverage:sol:check` |
+| Mutation check | 34 bugs planted one at a time, 34 caught | `npm run test:mutants` |
+| Static analysis | Slither: 1 high reported and reviewed as a false positive, 3 medium accepted ([notes](audit/SLITHER.md)) | `slither .` |
+
+### Still to do before it can go live
+
+- The relay has to accept payments made on Base and file those claims through the router.
+- Deploy and wiring commands for the router and outpost.
+- A testnet run, then the vault's owner calls `setArbiter(router)` from the owner wallet.
+- A float on Base, and a routine for refilling it.
