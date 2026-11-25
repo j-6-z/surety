@@ -9,6 +9,7 @@ const os = require("os");
 const path = require("path");
 const express = require("express");
 const { ethers } = require("ethers");
+const { pairFor } = require("./crosschain.config");
 const { createRelay } = require("./verifier/relay");
 const { createMarketApi } = require("./marketdata/server");
 const { createPriceReader, MONAD_MAINNET } = require("./marketdata/prices");
@@ -64,6 +65,7 @@ function buildSuretyApp(c) {
   const relay = createRelay({
     vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, signer: c.wallet,
     dataDir: c.dataDir, allowInsecure: c.allowInsecure,
+    routerAddress: c.routerAddress, remote: c.remote, flushAt: c.flushAt,
     skipStats: (addr, p) => addr === providerAddress && p === "/v1/demo/slow",
   });
   const app = express();
@@ -202,6 +204,11 @@ async function startSurety(c) {
 ///   PROVIDER_ADDRESS   the wallet the Market Data API is listed and bonded under (address only).
 ///   PAY_TO_ADDRESS     where API payments land (address only).
 ///   DEMO_KEY           optional: a small wallet that pays for homepage demo calls. No key, no demo.
+///
+/// Refunds on another chain (stage two, see CROSSCHAIN.md) switch on with one more setting:
+///   ROUTER_ADDRESS     the SuretyRouter that is the vault's arbiter. Claims are then filed through
+///                      it, and a payment made on the paired chain (Base) is refunded there.
+///   FLUSH_AT           optional: send a batch once this many refunds wait (default 20, 0 = never).
 function configFromEnv(env = process.env) {
   const net = networkFromEnv(env);
   const arbiterKey = env.ARBITER_KEY || env.PRIVATE_KEY;
@@ -213,6 +220,16 @@ function configFromEnv(env = process.env) {
     const missing = ["PROVIDER_ADDRESS", "PAY_TO_ADDRESS"].filter((k) => !ethers.isAddress(env[k] || ""));
     if (missing.length) throw new Error(`On mainnet, set ${missing.join(" and ")} (addresses, not keys).`);
     if (!env.ARBITER_KEY) throw new Error("On mainnet, name the relay's key ARBITER_KEY, so it is never confused with an owner key.");
+  }
+  let crossChain = {};
+  if (env.ROUTER_ADDRESS) {
+    if (!ethers.isAddress(env.ROUTER_ADDRESS)) throw new Error("ROUTER_ADDRESS is not an address.");
+    const { spoke } = pairFor(net.key, env);
+    crossChain = {
+      routerAddress: ethers.getAddress(env.ROUTER_ADDRESS),
+      remote: { [`eip155:${spoke.chainId}`]: { provider: new ethers.JsonRpcProvider(spoke.rpc, spoke.chainId, { staticNetwork: true }), usdc: spoke.usdc, eid: spoke.eid } },
+      ...(env.FLUSH_AT !== undefined && env.FLUSH_AT !== "" ? { flushAt: Number(env.FLUSH_AT) } : {}),
+    };
   }
   const host = env.VERCEL_PROJECT_PRODUCTION_URL || env.VERCEL_URL || env.RAILWAY_PUBLIC_DOMAIN;
   const publicUrl = (env.PUBLIC_URL || env.RENDER_EXTERNAL_URL || (host && `https://${host}`) || "").replace(/\/+$/, "") || undefined;
@@ -241,6 +258,7 @@ function configFromEnv(env = process.env) {
     // Serverless hosts only allow writes under the temp folder.
     dataDir: env.DATA_DIR || (env.VERCEL ? path.join(os.tmpdir(), "surety") : undefined),
     allowInsecure: !publicUrl, // only when running locally with no public address
+    ...crossChain,
   };
 }
 

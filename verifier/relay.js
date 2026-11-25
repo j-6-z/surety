@@ -26,6 +26,13 @@ const VAULT_ABI = [
   "function claimPaid(bytes32) view returns (bool)",
   "function payClaim(bytes32 claimId, address provider, address agent, uint256 payout, bytes32 evidenceHash)",
 ];
+const ROUTER_ABI = [
+  "function payClaim(bytes32 claimId, address provider, address agent, uint256 payout, bytes32 evidenceHash)",
+  "function payClaimRemote(bytes32 claimId, address provider, address agent, uint256 payout, bytes32 evidenceHash, uint32 dstEid) returns (uint256)",
+  "function pending(uint32 dstEid) view returns (uint256 refunds, uint256 amount)",
+  "function quoteFlush(uint32 dstEid) view returns (uint256)",
+  "function flush(uint32 dstEid) payable returns (bytes32, uint256)",
+];
 
 const SKIP_REQ = new Set(["host", "connection", "content-length", "transfer-encoding", "keep-alive", "upgrade"]);
 const SKIP_RES = new Set(["connection", "content-length", "transfer-encoding", "content-encoding", "keep-alive"]);
@@ -41,12 +48,23 @@ const MAX_BODY = 1024 * 1024;
  * @param {number} [o.hardTimeoutMs]            give up on a provider after this long
  * @param {number} [o.slaTtlMs]                 how long to cache an SLA document
  * @param {number} [o.statusTtlMs]              how long to cache a provider's active status
+ * @param {string} [o.routerAddress]            a SuretyRouter that is the vault's arbiter. When set,
+ *        every claim is filed through it, and payments made on a chain in `o.remote` can be refunded there
+ * @param {Record<string, {provider: import("ethers").Provider, usdc: string, eid: number}>} [o.remote]
+ *        other chains a payment may settle on, keyed by CAIP-2 id ("eip155:8453"): how to read that
+ *        chain, its USDC, and its LayerZero endpoint id
+ * @param {number} [o.flushAt]                  send a batch once this many refunds wait for a chain
+ *        (default 20, a full batch; 0 never sends, leaving it to `crosschain.js flush`)
  * @param {(provider: string, path: string) => boolean} [o.skipStats]
  *        calls that should not count toward the trust score (the operator's own demo endpoint)
  */
 function createRelay(o) {
   const provider = o.signer.provider;
   const vault = new ethers.Contract(o.vaultAddress, VAULT_ABI, o.signer);
+  // With a router in front, the router is the arbiter and the relay files claims through it.
+  const router = o.routerAddress ? new ethers.Contract(o.routerAddress, ROUTER_ABI, o.signer) : null;
+  const remote = o.remote || {};
+  const flushAt = o.flushAt ?? 20;
   const dataDir = o.dataDir || path.join(process.cwd(), "data");
   const hardTimeoutMs = o.hardTimeoutMs || 30_000;
   const slaTtlMs = o.slaTtlMs ?? 60_000;
@@ -138,25 +156,53 @@ function createRelay(o) {
   };
 
   async function fileClaim({ providerAddr, sla, receipt, evidence }) {
+    // Where did the payment settle? A receipt that names one of the other chains this relay is
+    // set up for is checked, and refunded, on that chain. Anything else is checked on ours, as
+    // before, so a receipt naming a chain we do not serve simply fails to verify.
+    const elsewhere = receipt.network && remote[receipt.network] && receipt.network !== `eip155:${await chainId()}` ? receipt.network : null;
+    const chain = elsewhere ? remote[elsewhere] : null;
+    if (chain && !router) throw new Error("router_not_configured");
     const { payer, amount } = await verifyTransfer({
-      provider,
-      usdc: o.usdcAddress,
+      provider: chain ? chain.provider : provider,
+      usdc: chain ? chain.usdc : o.usdcAddress,
       txHash: receipt.transaction,
       payTo: sla.payTo,
       payer: receipt.payer,
     });
-    const claimId = ethers.solidityPackedKeccak256(["uint256", "bytes32"], [await chainId(), receipt.transaction]);
-    const bundle = { ...evidence, claimId, payer, amount: amount.toString(), paymentTx: receipt.transaction };
+    // The chain id is part of the claim id, so the same transaction hash on two chains is two claims.
+    const paidOn = elsewhere ? BigInt(elsewhere.split(":")[1]) : await chainId();
+    const claimId = ethers.solidityPackedKeccak256(["uint256", "bytes32"], [paidOn, receipt.transaction]);
+    const bundle = { ...evidence, claimId, payer, amount: amount.toString(), paymentTx: receipt.transaction, ...(elsewhere ? { paymentChain: elsewhere } : {}) };
     const json = JSON.stringify(bundle, null, 2);
     const evidenceHash = ethers.keccak256(ethers.toUtf8Bytes(json));
     return enqueue(async () => {
       if (await vault.claimPaid(claimId)) throw new Error("claim_already_paid");
       fs.writeFileSync(path.join(dataDir, "evidence", `${claimId}.json`), json);
-      const tx = await vault.payClaim(claimId, providerAddr, payer, amount, evidenceHash);
+      const tx = chain
+        ? await router.payClaimRemote(claimId, providerAddr, payer, amount, evidenceHash, chain.eid)
+        : await (router || vault).payClaim(claimId, providerAddr, payer, amount, evidenceHash);
       await tx.wait();
       statusCache.delete(providerAddr); // the bond just shrank
-      return { id: claimId, tx: tx.hash, payout: amount.toString(), agent: payer };
+      const claim = { id: claimId, tx: tx.hash, payout: amount.toString(), agent: payer };
+      if (!chain) return claim;
+      // Settled: the bond is slashed and the refund is set aside in the router. It reaches the
+      // agent's chain with the next batch, which goes out now if the queue is full.
+      return { ...claim, settlesOn: elsewhere, delivery: await flushIfFull(chain.eid) };
     });
+  }
+
+  /// "sent" if a batch went out, otherwise "queued". Never fails the claim: the refund is
+  /// already safe in the router, and anyone can send the batch later.
+  async function flushIfFull(eid) {
+    if (!flushAt) return "queued";
+    try {
+      const [waiting] = await router.pending(eid);
+      if (waiting < BigInt(flushAt)) return "queued";
+      await (await router.flush(eid, { value: await router.quoteFlush(eid) })).wait();
+      return "sent";
+    } catch {
+      return "queued";
+    }
   }
 
   // ---- trust score v0. Formula is public on purpose:
@@ -267,6 +313,10 @@ function createRelay(o) {
             out["x-surety-claim-id"] = claim.id;
             out["x-surety-claim-tx"] = claim.tx;
             out["x-surety-claim-payout"] = claim.payout;
+            if (claim.settlesOn) {
+              out["x-surety-claim-settles-on"] = claim.settlesOn; // the refund is paid on this chain
+              out["x-surety-claim-delivery"] = claim.delivery; // queued | sent
+            }
           } catch (e) {
             out["x-surety-claim"] = `error:${String(e.shortMessage || e.message).slice(0, 120)}`;
           }

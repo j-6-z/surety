@@ -95,7 +95,7 @@ LayerZero addresses come from LayerZero's own deployment package (`@layerzerolab
 
 ## Stage two: refunds on the payer's chain
 
-Status: built and tested against a mock endpoint. **Not deployed.** Deploying it means making a new contract the vault's arbiter, so it waits for the relay changes and a testnet run first.
+Status: contracts, relay support and commands are built and tested against a mock endpoint. **Not deployed.** Going live makes a new contract the vault's arbiter, so it waits for a testnet run first.
 
 Today an agent that pays on Base for a call that fails would be refunded on Monad. Stage two pays it on Base, with two more contracts and no change to the vault.
 
@@ -141,11 +141,42 @@ A refund for a payer on Monad still goes straight through (`payClaim` on the rou
 | Invariants | 4, each over 256 random sequences of 100 actions: the router holds exactly what it owes; every refund is in exactly one place; each agent gets exactly its refunds; no rule broken along the way | `npm run test:sol` |
 | Coverage | 100% of lines, statements, branches and functions of all three contracts | `npm run coverage:sol:check` |
 | Mutation check | 34 bugs planted one at a time, 34 caught | `npm run test:mutants` |
+| Relay and commands | 9 JavaScript tests: a failed call paid on Base settled on Monad and paid back on Base, an empty float, a full queue sending itself, Monad payments unchanged, no double refund | `npm test` |
 | Static analysis | Slither: 1 high reported and reviewed as a false positive, 3 medium accepted ([notes](audit/SLITHER.md)) | `slither .` |
 
-### Still to do before it can go live
+### How the relay uses it
 
-- The relay has to accept payments made on Base and file those claims through the router.
-- Deploy and wiring commands for the router and outpost.
-- A testnet run, then the vault's owner calls `setArbiter(router)` from the owner wallet.
-- A float on Base, and a routine for refilling it.
+Set `ROUTER_ADDRESS` on the server and the relay files every claim through the router. When a failed call's x402 receipt says the payment settled on Base, the relay checks the USDC transfer on Base, files the claim with `payClaimRemote`, and tells the caller where the refund is going:
+
+```
+x-surety-claim: paid
+x-surety-claim-settles-on: eip155:8453
+x-surety-claim-delivery: queued        (or "sent" if that claim filled a batch)
+```
+
+A payment made on Monad is refunded on Monad at once, exactly as before. Without `ROUTER_ADDRESS` nothing changes. The claim id includes the chain the payment was made on, and the vault pays each id once, so one payment cannot be refunded on both chains.
+
+### Commands
+
+```
+node scripts/crosschain.js deploy-refunds     # router on Monad, outpost on Base, wired, verifiers named
+node scripts/crosschain.js refunds [0xAgent]  # queued, sent, spare float, credits, and who the vault's arbiter is
+node scripts/crosschain.js float 5            # move 5 USDC from your wallet into the outpost's float
+node scripts/crosschain.js flush              # send the next batch of queued refunds
+node scripts/crosschain.js refund-test        # testnet only: one made-up claim, to watch the path end to end
+```
+
+`deploy-refunds` does not touch the vault. It prints the router's address and stops.
+
+### Going live, in order
+
+1. `deploy-refunds`, then `float` a small amount.
+2. Set `ROUTER_ADDRESS` on the server and redeploy it.
+3. From the vault's **owner** wallet, call `setArbiter(<router address>)` on the vault. This is the only step that changes the live system. Between steps 2 and 3 the relay cannot file claims, so do them back to back.
+4. To undo it: the owner calls `setArbiter(<the relay's own address>)` and `ROUTER_ADDRESS` is removed from the server.
+
+### Still to do
+
+- A run on testnet against the real LayerZero endpoint, using `refund-test`.
+- A provider that accepts payment on Base. The Market Data API and the provider kit charge on Monad only today, so until one does there is no Base payment to refund.
+- A routine for refilling the float from the router's reimbursable balance.

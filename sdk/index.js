@@ -32,7 +32,14 @@ function createSuretyClient({ relayUrl, fetch: f = globalThis.fetch }) {
       latencyMs: Number(h.get("x-surety-latency-ms")) || null,
       claim:
         claimState === "paid"
-          ? { id: h.get("x-surety-claim-id"), tx: h.get("x-surety-claim-tx"), payout: h.get("x-surety-claim-payout") }
+          ? {
+              id: h.get("x-surety-claim-id"),
+              tx: h.get("x-surety-claim-tx"),
+              payout: h.get("x-surety-claim-payout"),
+              // Set only when you paid on another chain: the refund is paid there, and arrives
+              // with the next batch ("queued") or is already on its way ("sent").
+              ...(h.get("x-surety-claim-settles-on") ? { settlesOn: h.get("x-surety-claim-settles-on"), delivery: h.get("x-surety-claim-delivery") } : {}),
+            }
           : null,
       claimError: claimState && claimState !== "paid" ? claimState : null,
     };

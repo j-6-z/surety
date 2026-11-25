@@ -4,6 +4,10 @@ const { ethers } = require("ethers");
 
 const TRANSFER_TOPIC = ethers.id("Transfer(address,address,uint256)");
 
+// x402 v2 names the chain a payment settled on as a CAIP-2 id ("eip155:8453"); v1 used short names.
+const V1_NETWORKS = { base: "eip155:8453", "base-sepolia": "eip155:84532", monad: "eip155:143", "monad-testnet": "eip155:10143" };
+const caip = (n) => (typeof n !== "string" ? null : /^eip155:\d+$/.test(n) ? n : V1_NETWORKS[n.toLowerCase()] || null);
+
 /// x402 v2 sends the receipt in PAYMENT-RESPONSE, v1 in X-PAYMENT-RESPONSE.
 /// The value is JSON (usually base64-encoded) with at least a transaction hash.
 function parseReceipt(headers) {
@@ -22,7 +26,8 @@ function parseReceipt(headers) {
   if (!obj || typeof obj !== "object") return null;
   const tx = obj.transaction || obj.txHash;
   if (obj.success === false || typeof tx !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(tx)) return null;
-  return { transaction: tx, payer: ethers.isAddress(obj.payer) ? ethers.getAddress(obj.payer) : null };
+  // `network` is null when the receipt does not say, or names a chain in a form we do not know.
+  return { transaction: tx, payer: ethers.isAddress(obj.payer) ? ethers.getAddress(obj.payer) : null, network: caip(obj.network) };
 }
 
 function safeBase64(s) {

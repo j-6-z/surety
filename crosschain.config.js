@@ -20,6 +20,7 @@ const CHAINS = {
   base: {
     name: "Base", chainId: 8453, eid: 30184, rpc: "https://mainnet.base.org", rpcEnv: "BASE_RPC",
     explorer: "https://basescan.org", native: "ETH",
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Circle's USDC on Base; deploy-refunds checks symbol and decimals on-chain
     endpoints: ["0x1a44076050125825900e736c501f859c50fE728c"],
     sendUln302: "0xB5320B0B3a13cC860893E2Bd79FCd7e13484Dda2",
     receiveUln302: "0xc70AB6f32772f59fBfc23889Caf4Ba3376C84bAf",
@@ -40,6 +41,7 @@ const CHAINS = {
   baseSepolia: {
     name: "Base Sepolia", chainId: 84532, eid: 40245, rpc: "https://sepolia.base.org", rpcEnv: "BASE_SEPOLIA_RPC",
     explorer: "https://sepolia.basescan.org", native: "test ETH",
+    usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Circle's test USDC on Base Sepolia
     endpoints: ["0x6EDCE65403992e310A62460808c4b910D972f10f"],
     dvns: { "LayerZero Labs": "0xe1a12515F9AB2764b887bF60B923Ca494EBbB2d6" },
     deadDvn: "0x78551ADC2553EF1858a558F5300F7018Aad2FA7e",

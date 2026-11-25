@@ -6,6 +6,13 @@
 //   node scripts/crosschain.js read [0xProvider…]  what the mirror holds, next to what the vault says now
 //   node scripts/crosschain.js pin                 fix which verifiers (DVNs) the pair uses, instead of defaults
 //
+// Stage two, refunds paid on Base (see CROSSCHAIN.md before using any of these on mainnet):
+//   node scripts/crosschain.js deploy-refunds      deploy the router (Monad) and outpost (Base), wired and pinned
+//   node scripts/crosschain.js refunds [0xAgent…]  what is queued, sent, in the float, and owed to these agents
+//   node scripts/crosschain.js float <usdc>        add USDC from your wallet to the outpost's float on Base
+//   node scripts/crosschain.js flush               send the next batch of queued refunds
+//   node scripts/crosschain.js refund-test         testnet only: file one made-up remote claim against your own bond
+//
 // Uses SURETY_NETWORK (testnet: Monad testnet <-> Base Sepolia, mainnet: Monad <-> Base).
 // PRIVATE_KEY in .env pays on both chains, so that wallet needs a little gas on each.
 // With no providers named, `send` and `read` use PROVIDER_ADDRESS from .env.
@@ -311,47 +318,201 @@ async function read(args, { log = console.log, env = process.env } = {}) {
 
 /// Stop relying on LayerZero's defaults (which LayerZero can change): name the library and the
 /// DVNs this pair uses, on both sides. Both sides must name the same DVNs or nothing is delivered.
-async function pin({ log = console.log, env = process.env } = {}) {
-  const c = await connect(env);
-  needKey(c);
-  needDeployed(c);
+/// Name the library and DVNs for one sender on the hub and one receiver on the spoke.
+async function pinApps(c, hubApp, spokeApp, log) {
   const names = await usableDvns(c);
   if (!names.length) throw new Error("None of the verifiers in crosschain.config.js is deployed on both chains and quotes a fee for this route.");
-  const before = await pathway(c.hubEndpoint, "send", c.saved.beacon, c.spokeEndpoint.eid, c.pair.hub);
+  const before = await pathway(c.hubEndpoint, "send", hubApp, c.spokeEndpoint.eid, c.pair.hub);
   if (before.error) throw new Error(`Cannot read the current setup: ${before.error}`);
   const confirmations = before.confirmations;
   log(`Pinning ${names.join(" + ")} with ${confirmations} confirmations.`);
 
   const hub = c.hubEndpoint.contract.connect(c.hubSigner);
-  const sendLib = await hub.getSendLibrary(c.saved.beacon, c.spokeEndpoint.eid);
-  if (await hub.isDefaultSendLibrary(c.saved.beacon, c.spokeEndpoint.eid)) await (await hub.setSendLibrary(c.saved.beacon, c.spokeEndpoint.eid, sendLib)).wait();
-  const executor = await hub.getConfig(c.saved.beacon, sendLib, c.spokeEndpoint.eid, CONFIG_TYPE_EXECUTOR);
-  await (await hub.setConfig(c.saved.beacon, sendLib, [
+  const sendLib = await hub.getSendLibrary(hubApp, c.spokeEndpoint.eid);
+  if (await hub.isDefaultSendLibrary(hubApp, c.spokeEndpoint.eid)) await (await hub.setSendLibrary(hubApp, c.spokeEndpoint.eid, sendLib)).wait();
+  const executor = await hub.getConfig(hubApp, sendLib, c.spokeEndpoint.eid, CONFIG_TYPE_EXECUTOR);
+  await (await hub.setConfig(hubApp, sendLib, [
     { eid: c.spokeEndpoint.eid, configType: CONFIG_TYPE_EXECUTOR, config: executor },
     { eid: c.spokeEndpoint.eid, configType: CONFIG_TYPE_ULN, config: encodeUlnConfig(confirmations, names.map((n) => c.pair.hub.dvns[n])) },
   ])).wait();
   log(`${c.pair.hub.name} side set.`);
 
   const spoke = c.spokeEndpoint.contract.connect(c.spokeSigner);
-  const [receiveLib, isDefault] = await spoke.getReceiveLibrary(c.saved.mirror, c.hubEndpoint.eid);
-  if (isDefault) await (await spoke.setReceiveLibrary(c.saved.mirror, c.hubEndpoint.eid, receiveLib, 0)).wait();
-  await (await spoke.setConfig(c.saved.mirror, receiveLib, [
+  const [receiveLib, isDefault] = await spoke.getReceiveLibrary(spokeApp, c.hubEndpoint.eid);
+  if (isDefault) await (await spoke.setReceiveLibrary(spokeApp, c.hubEndpoint.eid, receiveLib, 0)).wait();
+  await (await spoke.setConfig(spokeApp, receiveLib, [
     { eid: c.hubEndpoint.eid, configType: CONFIG_TYPE_ULN, config: encodeUlnConfig(confirmations, names.map((n) => c.pair.spoke.dvns[n])) },
   ])).wait();
   log(`${c.pair.spoke.name} side set.`);
+}
+
+async function pin({ log = console.log, env = process.env } = {}) {
+  const c = await connect(env);
+  needKey(c);
+  needDeployed(c);
+  await pinApps(c, c.saved.beacon, c.saved.mirror, log);
   // The proof that the send side is right: the beacon can now price a real message.
   const fee = await contractAt("SuretyBeacon", c.saved.beacon, c.hubProvider).quote(c.spokeEndpoint.eid, [ethers.ZeroAddress]);
   log(`A one-provider report now costs ${ethers.formatEther(fee)} ${c.pair.hub.native}.\n`);
   return status({ log, env });
 }
 
-module.exports = { deployPair, sendReport, readMirror, encodeUlnConfig, findEndpoint, providersFrom, routeState, status, deploy, send, read, pin, b32 };
+// ------------------------------------------------------------------ stage two: refunds on the spoke
+
+const ERC20_ABI = ["function symbol() view returns (string)", "function decimals() view returns (uint8)", "function balanceOf(address) view returns (uint256)", "function transfer(address,uint256) returns (bool)"];
+
+/// Deploy the router and outpost if missing and point them at each other. Safe to run again.
+/// This does NOT make the router the vault's arbiter; only the vault's owner can do that.
+async function deployRefundPair({ hubSigner, spokeSigner, hubEndpoint, spokeEndpoint, hubEid, spokeEid, vault, relay, spokeUsdc, saved = {}, save = () => {}, log = console.log }) {
+  const state = { ...saved };
+  const factory = (name, signer) => new ethers.ContractFactory(artifact(name).abi, artifact(name).bytecode, signer);
+  if (!state.router) {
+    const router = await factory("SuretyRouter", hubSigner).deploy(hubEndpoint, await hubSigner.getAddress(), vault, relay);
+    await router.waitForDeployment();
+    state.router = await router.getAddress();
+    save(state);
+    log(`Router deployed:  ${state.router}`);
+  }
+  if (!state.outpost) {
+    const outpost = await factory("SuretyOutpost", spokeSigner).deploy(spokeEndpoint, await spokeSigner.getAddress(), spokeUsdc, hubEid);
+    await outpost.waitForDeployment();
+    state.outpost = await outpost.getAddress();
+    save(state);
+    log(`Outpost deployed: ${state.outpost}`);
+  }
+  const router = contractAt("SuretyRouter", state.router, hubSigner);
+  const outpost = contractAt("SuretyOutpost", state.outpost, spokeSigner);
+  if (!same(await router.peers(spokeEid), b32(state.outpost))) {
+    await (await router.setPeer(spokeEid, b32(state.outpost))).wait();
+    log("Router now sends to the outpost.");
+  }
+  if (!same(await outpost.peers(hubEid), b32(state.router))) {
+    await (await outpost.setPeer(hubEid, b32(state.router))).wait();
+    log("Outpost now listens to the router.");
+  }
+  return { router, outpost, state };
+}
+
+/// Send the next batch of queued refunds. Anyone can; the caller pays the LayerZero fee.
+async function flushRefunds({ router, dstEid, log = console.log }) {
+  const fee = await router.quoteFlush(dstEid);
+  const receipt = await (await router.flush(dstEid, { value: fee })).wait();
+  const sent = receipt.logs.map((l) => { try { return router.interface.parseLog(l); } catch { return null; } }).find((l) => l && l.name === "Flushed");
+  log(`Sent ${sent.args.refunds} refund${sent.args.refunds === 1n ? "" : "s"} worth ${usdc(sent.args.amount)}. LayerZero fee: ${ethers.formatEther(fee)}`);
+  return { hash: receipt.hash, guid: sent.args.guid, refunds: Number(sent.args.refunds), amount: sent.args.amount, fee };
+}
+
+/// Where the money is: queued on the hub, reimbursable, spare on the spoke, and owed to each agent.
+async function refundStatus({ router, outpost, spokeEid, agents = [] }) {
+  const [[refunds, amount], reimbursable, spareFloat, totalCredit, totalPaid] = await Promise.all([
+    router.pending(spokeEid), router.reimbursable(), outpost.spareFloat(), outpost.totalCredit(), outpost.totalPaid(),
+  ]);
+  const credits = await Promise.all(agents.map(async (agent) => ({ agent, amount: await outpost.credit(agent) })));
+  return { pending: { refunds: Number(refunds), amount }, reimbursable, spareFloat, totalCredit, totalPaid, credits };
+}
+
+function needRefundsDeployed(c) {
+  if (!c.saved.router || !c.saved.outpost) throw new Error("The router and outpost are not deployed for this network. Run  node scripts/crosschain.js deploy-refunds  first.");
+}
+const refundContracts = (c, write) => ({
+  router: contractAt("SuretyRouter", c.saved.router, write ? c.hubSigner : c.hubProvider),
+  outpost: contractAt("SuretyOutpost", c.saved.outpost, write ? c.spokeSigner : c.spokeProvider),
+});
+
+async function deployRefunds({ log = console.log, env = process.env } = {}) {
+  const { problems, connection: c } = await status({ log, env });
+  needKey(c);
+  if (problems.length) throw new Error("Fix the points above first.");
+  if (c.net.real && env.I_UNDERSTAND_UNAUDITED !== "yes") throw new Error("These contracts are not audited. Set I_UNDERSTAND_UNAUDITED=yes in .env to deploy them on mainnet anyway.");
+  if (!c.pair.spoke.usdc) throw new Error(`No USDC address is listed for ${c.pair.spoke.name} in crosschain.config.js.`);
+  // The token must really be USDC with 6 decimals before a contract that pays out in it is built.
+  const token = new ethers.Contract(c.pair.spoke.usdc, ERC20_ABI, c.spokeProvider);
+  const [symbol, decimals] = await Promise.all([token.symbol(), token.decimals()]).catch(() => { throw new Error(`Nothing that looks like a token is at ${c.pair.spoke.usdc} on ${c.pair.spoke.name}.`); });
+  if (symbol !== "USDC" || Number(decimals) !== 6) throw new Error(`${c.pair.spoke.usdc} on ${c.pair.spoke.name} is ${symbol} with ${decimals} decimals, not USDC with 6.`);
+  // The relay's key is whichever key is the vault's arbiter today, unless RELAY_ADDRESS says otherwise.
+  const arbiter = await new ethers.Contract(c.net.vault, ["function arbiter() view returns (address)"], c.hubProvider).arbiter();
+  const relay = env.RELAY_ADDRESS ? ethers.getAddress(env.RELAY_ADDRESS) : arbiter;
+  log(`\nRelay key (may file claims through the router): ${relay}`);
+  const { state } = await deployRefundPair({
+    hubSigner: c.hubSigner, spokeSigner: c.spokeSigner,
+    hubEndpoint: c.hubEndpoint.address, spokeEndpoint: c.spokeEndpoint.address,
+    hubEid: c.hubEndpoint.eid, spokeEid: c.spokeEndpoint.eid,
+    vault: c.net.vault, relay, spokeUsdc: c.pair.spoke.usdc,
+    saved: c.saved, save: (s) => writeSaved(c.net.key, s), log,
+  });
+  await pinApps(c, state.router, state.outpost, log);
+  log(`\n${c.pair.hub.explorer}/address/${state.router}\n${c.pair.spoke.explorer}/address/${state.outpost}`);
+  log(`\nDeployed and wired. Nothing has changed for the vault yet: its arbiter is still ${arbiter}.\nRefunds only flow through the router once the vault's owner calls setArbiter(${state.router}).`);
+  return state;
+}
+
+async function refunds(args, { log = console.log, env = process.env } = {}) {
+  const c = await connect(env);
+  needRefundsDeployed(c);
+  const agents = args.map((a) => ethers.getAddress(a));
+  const s = await refundStatus({ ...refundContracts(c), spokeEid: c.spokeEndpoint.eid, agents });
+  const arbiter = await new ethers.Contract(c.net.vault, ["function arbiter() view returns (address)"], c.hubProvider).arbiter();
+  log(`Router ${c.saved.router} on ${c.pair.hub.name}: ${same(arbiter, c.saved.router) ? "is the vault's arbiter" : `NOT the vault's arbiter (that is ${arbiter})`}`);
+  log(`  waiting to be sent: ${s.pending.refunds} refund${s.pending.refunds === 1 ? "" : "s"}, ${usdc(s.pending.amount)}`);
+  log(`  sent, and yours to move across to refill the float: ${usdc(s.reimbursable)}`);
+  log(`Outpost ${c.saved.outpost} on ${c.pair.spoke.name}:`);
+  log(`  spare float: ${usdc(s.spareFloat)}   owed as credits: ${usdc(s.totalCredit)}   paid so far: ${usdc(s.totalPaid)}`);
+  for (const credit of s.credits) log(`  ${credit.agent} is owed ${usdc(credit.amount)}`);
+  return s;
+}
+
+async function float(args, { log = console.log, env = process.env } = {}) {
+  const c = await connect(env);
+  needKey(c);
+  needRefundsDeployed(c);
+  if (!/^\d+(\.\d+)?$/.test(args[0] || "")) throw new Error("Say how much USDC to add, for example:  node scripts/crosschain.js float 5");
+  const amount = ethers.parseUnits(args[0], 6);
+  const token = new ethers.Contract(c.pair.spoke.usdc, ERC20_ABI, c.spokeSigner);
+  const have = await token.balanceOf(c.spokeSigner.address);
+  if (have < amount) throw new Error(`The wallet holds ${usdc(have)} on ${c.pair.spoke.name}, less than ${usdc(amount)}.`);
+  const tx = await token.transfer(c.saved.outpost, amount);
+  await tx.wait();
+  log(`Added ${usdc(amount)} to the float. ${c.pair.spoke.explorer}/tx/${tx.hash}`);
+  return refunds([], { log, env });
+}
+
+async function flush({ log = console.log, env = process.env } = {}) {
+  const c = await connect(env);
+  needKey(c);
+  needRefundsDeployed(c);
+  const sent = await flushRefunds({ router: refundContracts(c, true).router, dstEid: c.spokeEndpoint.eid, log: (m) => log(`${m} ${c.pair.hub.native}`) });
+  log(`Follow it across: ${c.pair.scan}/tx/${sent.hash}`);
+  return sent;
+}
+
+/// Testnet only. Files one small made-up claim through the router against PROVIDER_ADDRESS (or
+/// this wallet), so the whole path can be watched end to end without a real failed call.
+async function refundTest({ log = console.log, env = process.env } = {}) {
+  const c = await connect(env);
+  needKey(c);
+  needRefundsDeployed(c);
+  if (c.net.real) throw new Error("refund-test invents a claim, so it only runs on testnet.");
+  const { router } = refundContracts(c, true);
+  const provider = ethers.getAddress(env.PROVIDER_ADDRESS || c.hubSigner.address);
+  const claimId = ethers.id(`refund-test:${Date.now()}`);
+  const tx = await router.payClaimRemote(claimId, provider, c.hubSigner.address, 1000n, ethers.ZeroHash, c.spokeEndpoint.eid);
+  await tx.wait();
+  log(`Filed a 0.001 USDC claim against ${provider}, to be paid to ${c.hubSigner.address} on ${c.pair.spoke.name}.`);
+  await flush({ log, env });
+  log(`When it lands: node scripts/crosschain.js refunds ${c.hubSigner.address}`);
+}
+
+module.exports = { deployPair, sendReport, readMirror, encodeUlnConfig, findEndpoint, providersFrom, routeState, status, deploy, send, read, pin, b32,
+  deployRefundPair, flushRefunds, refundStatus, deployRefunds, refunds, float, flush, refundTest };
 
 if (require.main === module) {
   const [command, ...args] = process.argv.slice(2);
-  const run = { status: () => status(), deploy: () => deploy(), send: () => send(args), read: () => read(args), pin: () => pin() }[command];
+  const run = {
+    status: () => status(), deploy: () => deploy(), send: () => send(args), read: () => read(args), pin: () => pin(),
+    "deploy-refunds": () => deployRefunds(), refunds: () => refunds(args), float: () => float(args), flush: () => flush(), "refund-test": () => refundTest(),
+  }[command];
   if (!run) {
-    console.error("Usage: node scripts/crosschain.js status | deploy | send [0xProvider…] | read [0xProvider…] | pin");
+    console.error("Usage: node scripts/crosschain.js status | deploy | send [0xProvider…] | read [0xProvider…] | pin\n       stage two: deploy-refunds | refunds [0xAgent…] | float <usdc> | flush | refund-test");
     process.exit(1);
   }
   run().then(

@@ -14,7 +14,9 @@ const QUOTE_SCHEMA = {
   properties: { symbol: { type: "string" }, price: { type: "number" } },
 };
 
-function createMockProvider({ usdc, agentSigner, payTo, price, chainId }) {
+/// `network` overrides the chain named on the receipt, for tests that pretend the payment
+/// settled somewhere else (give `usdc` that chain's token).
+function createMockProvider({ usdc, agentSigner, payTo, price, chainId, network }) {
   let baseUrl = "";
   const sla = () => ({
     version: 1,
@@ -40,7 +42,7 @@ function createMockProvider({ usdc, agentSigner, payTo, price, chainId }) {
     const tx = await usdc.connect(agentSigner).transfer(payTo, price);
     await tx.wait();
     const receipt = Buffer.from(
-      JSON.stringify({ success: true, transaction: tx.hash, network: `eip155:${chainId}`, payer: agentSigner.address })
+      JSON.stringify({ success: true, transaction: tx.hash, network: network || `eip155:${chainId}`, payer: agentSigner.address })
     ).toString("base64");
     const paid = { "payment-response": receipt };
 
