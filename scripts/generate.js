@@ -57,7 +57,7 @@ const ARTICLE_CSS = `
 @media (max-width:520px){.prose{font-size:17.5px}.prose h2{font-size:25px;margin-top:38px}.post .standfirst,.index .standfirst{font-size:19px}.prose td:first-child{white-space:normal}.demo-cta a{width:100%;text-align:center}}
 .demo-cta{background:var(--night);color:#F3F0FF;border-radius:18px;padding:26px 28px;margin:48px 0 0;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;justify-content:space-between}
 .demo-cta p{margin:0;font-size:20px;font-weight:500;max-width:30ch;line-height:1.3}
-.demo-cta a{background:var(--purple);color:#fff;text-decoration:none;font-weight:500;padding:13px 20px;border-radius:11px}
+.demo-cta a{background:var(--brand);color:#fff;text-decoration:none;font-weight:500;padding:13px 20px;border-radius:11px}
 .more{margin:52px 0 0}
 .more h2{font-size:20px;margin:0 0 6px}
 .list{list-style:none;margin:0;padding:0}

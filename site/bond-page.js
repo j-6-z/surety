@@ -15,7 +15,7 @@ ol.flow>li{counter-increment:s;background:var(--panel);border:1px solid var(--li
 ol.flow>li.locked{opacity:.55}
 ol.flow>li.done{border-color:#BFE9D6}
 ol.flow h2{font-size:22px;letter-spacing:-.015em;margin:0 0 4px;display:flex;gap:12px;align-items:baseline}
-ol.flow h2::before{content:counter(s);flex:none;width:30px;height:30px;border-radius:50%;background:var(--purple);color:#fff;font-size:16px;display:inline-flex;align-items:center;justify-content:center;transform:translateY(-2px)}
+ol.flow h2::before{content:counter(s);flex:none;width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;font-size:16px;display:inline-flex;align-items:center;justify-content:center;transform:translateY(-2px)}
 ol.flow>li.done h2::before{content:"✓";background:var(--pass)}
 ol.flow p{margin:0 0 14px;color:#443E62;font-size:17px}
 .row{display:flex;flex-wrap:wrap;gap:10px}
@@ -23,7 +23,7 @@ ol.flow p{margin:0 0 14px;color:#443E62;font-size:17px}
 input[type=text],input[type=url]{font:inherit;font-size:17px;padding:12px 14px;border:1.5px solid #CFC8EA;border-radius:11px;background:#fff;color:var(--ink);min-height:48px;width:100%}
 input:focus{outline:3px solid var(--purple);outline-offset:1px;border-color:var(--purple)}
 label{display:block;font-size:15.5px;font-weight:500;margin:0 0 6px}
-button.act{font:inherit;font-size:17px;font-weight:500;padding:0 20px;min-height:48px;border-radius:11px;border:0;background:var(--purple);color:#fff;cursor:pointer}
+button.act{font:inherit;font-size:17px;font-weight:500;padding:0 20px;min-height:48px;border-radius:11px;border:0;background:var(--brand);color:#fff;cursor:pointer}
 button.act.quiet{background:transparent;color:var(--ink);border:1.5px solid #CFC8EA}
 button.act[disabled]{opacity:.5;cursor:not-allowed}
 .msg{margin:14px 0 0;padding:12px 14px;border-radius:11px;font-size:16.5px;background:#EEEAFB}

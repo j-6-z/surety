@@ -11,13 +11,13 @@ h1{font-size:clamp(40px,5.6vw,72px);line-height:1;letter-spacing:-.035em;font-we
 .lede{font-size:21px;line-height:1.45;color:#3B3558;max-width:56ch;margin:0}
 
 /* The demo console: the one loud object on the page. */
-.console{background:var(--night);color:#F3F0FF;border-radius:22px;padding:30px 32px 26px;margin:6px 0 0;box-shadow:0 30px 60px -36px rgba(27,18,66,.75)}
+.console{background:radial-gradient(520px 300px at 100% 0%,rgba(255,95,168,.2),transparent 62%),var(--night);color:#F3F0FF;border-radius:22px;padding:30px 32px 26px;margin:6px 0 0;box-shadow:0 30px 60px -36px rgba(27,18,66,.75)}
 .console h2{font-size:clamp(24px,2.6vw,32px);letter-spacing:-.02em;line-height:1.15;margin:0 0 6px;font-weight:700}
 .console .hint{color:var(--lilac);margin:0 0 22px;font-size:17px;max-width:62ch}
 .runs{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:26px}
 .run{font:inherit;font-weight:500;font-size:18px;padding:15px 22px;border-radius:12px;border:2px solid transparent;cursor:pointer;text-align:left;line-height:1.2}
 .run small{display:block;font-size:14px;font-weight:400;opacity:.85;margin-top:3px}
-.run.good{background:var(--purple);color:#fff}
+.run.good{background:var(--brand);color:#fff}
 .run.slow{background:transparent;color:#fff;border-color:var(--night-line)}
 .run[disabled]{opacity:.55;cursor:progress}
 ol.trace{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--night-line)}
@@ -61,7 +61,7 @@ h2.title{font-size:clamp(28px,3.4vw,42px);letter-spacing:-.025em;line-height:1.0
 .use h3{font-size:24px;letter-spacing:-.02em;margin:0 0 8px}
 .use p{margin:0 0 16px;color:#443E62}
 .use p.small{font-size:15.5px;color:var(--muted);margin:12px 0 0}
-.go{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:17px;font-weight:500;min-height:48px;padding:0 20px;border-radius:11px;border:0;background:var(--purple);color:#fff;text-decoration:none;cursor:pointer}
+.go{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:17px;font-weight:500;min-height:48px;padding:0 20px;border-radius:11px;border:0;background:var(--brand);color:#fff;text-decoration:none;cursor:pointer}
 .use label{display:block;font-size:15.5px;font-weight:500;margin:0 0 6px}
 .lookup{display:flex;flex-wrap:wrap;gap:10px}
 .lookup input{flex:1 1 220px;min-width:0;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:14px;padding:12px;border:1.5px solid #CFC8EA;border-radius:11px;min-height:48px;background:#fff;color:var(--ink)}
@@ -113,8 +113,8 @@ ul.plain span{color:#443E62;font-size:16.5px}
 ol.how{list-style:none;margin:0 0 30px;padding:0;counter-reset:how}
 ol.how li{counter-increment:how;position:relative;padding:0 0 22px 54px}
 ol.how li:last-child{padding-bottom:0}
-ol.how li::before{content:counter(how);position:absolute;left:0;top:-2px;width:36px;height:36px;border-radius:50%;background:var(--panel);border:1.5px solid var(--purple);color:var(--purple-deep);font-weight:700;font-size:17px;display:flex;align-items:center;justify-content:center}
-ol.how li::after{content:"";position:absolute;left:17.5px;top:38px;bottom:2px;width:1.5px;background:#D5CCF7}
+ol.how li::before{content:counter(how);position:absolute;left:0;top:-2px;width:36px;height:36px;border-radius:50%;background:var(--brand);border:0;color:#fff;font-weight:700;font-size:17px;display:flex;align-items:center;justify-content:center}
+ol.how li::after{content:"";position:absolute;left:17.25px;top:38px;bottom:2px;width:1.5px;background:linear-gradient(#C9B3F7,#F3B6DA)}
 ol.how li:last-child::after{display:none}
 ol.how b{display:block;font-size:20px;letter-spacing:-.01em}
 ol.how span{display:block;color:#443E62;font-size:16.5px;line-height:1.45;margin-top:2px}

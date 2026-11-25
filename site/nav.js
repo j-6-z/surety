@@ -5,7 +5,7 @@
 // the brand, four menus that open on click (never on hover), and the two actions.
 // On phones the menus collapse behind a Menu button and open as one list.
 // Without JavaScript every link is simply shown.
-const { esc, DEFAULT_REPO, NET } = require("./theme");
+const { esc, DEFAULT_REPO, NET, MARK } = require("./theme");
 
 const navCss = `
 header.site{position:sticky;top:0;z-index:50;margin:0 0 6px}
@@ -16,7 +16,7 @@ header.site.stuck::before{box-shadow:0 10px 30px -22px rgba(27,18,66,.45)}
 .util::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:-100vmax;right:-100vmax;background:var(--night)}
 .util p{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
 .util .net{display:inline-flex;align-items:center;gap:8px;color:#fff;font-weight:500}
-.util .net::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pass-soft);animation:beat 2.6s ease-in-out infinite}
+.util .net::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pink);animation:beat 2.6s ease-in-out infinite}
 .util .stats{display:inline-flex;flex-wrap:wrap;gap:2px 0;color:#B9AFE6}
 .util .stats[hidden]{display:none}
 .util .stats span{padding:0 14px;border-left:1px solid var(--night-line)}
@@ -36,7 +36,7 @@ nav.site .m{position:relative}
 nav.site .m>button{font:inherit;color:var(--ink);background:none;border:0;border-radius:9px;padding:10px 10px;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
 nav.site .m>button::after{content:"";width:7px;height:7px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:translateY(-2px) rotate(45deg);transition:transform .2s ease}
 nav.site .m.here>button{font-weight:500;color:var(--purple-deep)}
-nav.site .m.open>button{background:#EFEBFF}
+nav.site .m.open>button{background:#F6E9FA}
 nav.site .m.open>button::after{transform:translateY(2px) rotate(225deg)}
 nav.site .drop{display:flex;flex-wrap:wrap;gap:2px 18px;padding:2px 12px 8px}
 nav.site .drop a{color:var(--ink);text-decoration:none;display:block}
@@ -46,7 +46,7 @@ nav.site .drop a[aria-current="page"] strong{color:var(--purple-deep)}
 nav.site .acts{display:flex;gap:10px;margin-left:10px}
 nav.site .acts a{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 16px;border-radius:11px;font-weight:500;font-size:16.5px;text-decoration:none;white-space:nowrap}
 nav.site .acts .ghost{color:var(--ink);border:1.5px solid #CFC8EA;background:var(--panel)}
-nav.site .acts .cta{background:var(--purple);color:#fff;box-shadow:0 8px 20px -12px rgba(110,84,255,.9)}
+nav.site .acts .cta{background:var(--brand);color:#fff;box-shadow:0 8px 20px -12px rgba(170,70,220,.9)}
 nav.site .menu-btn{display:none;font:inherit;font-size:17px;font-weight:500;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:0 16px;min-height:46px;cursor:pointer;align-items:center;gap:10px}
 nav.site .menu-btn .bars{width:18px;height:12px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);position:relative}
 nav.site .menu-btn .bars::after{content:"";position:absolute;left:0;right:0;top:3px;border-top:2px solid var(--ink)}
@@ -58,7 +58,7 @@ nav.site .menu-btn .bars::after{content:"";position:absolute;left:0;right:0;top:
   .js nav.site .m:nth-last-of-type(-n+3) .drop{left:auto;right:-10px}
   .js nav.site .m.open .drop{display:flex;animation:unfold .18s ease-out both}
   .js nav.site .drop a{padding:11px 14px;border-radius:10px}
-  .js nav.site .drop a[aria-current="page"]{background:#F3F0FF}
+  .js nav.site .drop a[aria-current="page"]{background:#F9EDF8}
 }
 @keyframes unfold{from{opacity:0;transform:translateY(-6px)}}
 @media (min-width:981px) and (max-width:1240px){nav.site .brand small{display:none}}
@@ -108,7 +108,7 @@ const MENUS = (repo) => [
   ] },
 ];
 
-const SHIELD = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#6E54FF"/><g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 13l15 6v12c0 10-6 16-15 19-9-3-15-9-15-19V19z"/><path d="M25 31l5 5 9-10"/></g></svg>';
+const SHIELD = `<svg viewBox="0 0 64 64" aria-hidden="true">${MARK}</svg>`;
 
 /**
  * @param {object} [o]

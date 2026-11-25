@@ -2,9 +2,9 @@
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const SITE_NAME = "Surety";
-const ICON = "data:image/svg+xml," + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#6E54FF"/><g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 13l15 6v12c0 10-6 16-15 19-9-3-15-9-15-19V19z"/><path d="M25 31l5 5 9-10"/></g></svg>'
-);
+// The mark: a white shield on a purple-to-pink ground, with the check drawn in the same gradient.
+const MARK = '<defs><linearGradient id="surety-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6E54FF"/><stop offset=".55" stop-color="#A94BF3"/><stop offset="1" stop-color="#FF5FA8"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#surety-g)"/><path d="M32 11.5l16.5 6.6v12.4c0 10.8-6.8 17.6-16.5 20.9-9.7-3.3-16.5-10.1-16.5-20.900V18.1z" fill="#fff"/><path d="M24.3 31.4l5.6 5.6 10-10.800" fill="none" stroke="url(#surety-g)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>';
+const ICON = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${MARK}</svg>`);
 
 const { networkFromEnv, NETWORKS } = require("../networks");
 
@@ -24,30 +24,31 @@ function useNetwork(profile) {
 
 // The page's one ornament: a pale flower, drawn once and reused as a background.
 // Sixteen petals in two rings. `tone` is the petal colour, `core` the centre.
-function flower(tone, core) {
-  const ring = (n, offset, d, opacity) =>
-    Array.from({ length: n }, (_, i) => `<path transform="rotate(${offset + (360 / n) * i})" d="${d}" fill="${tone}" fill-opacity="${opacity}"/>`).join("");
+function flower(tone, core, inner = tone) {
+  const ring = (n, offset, d, opacity, fill) =>
+    Array.from({ length: n }, (_, i) => `<path transform="rotate(${offset + (360 / n) * i})" d="${d}" fill="${fill}" fill-opacity="${opacity}"/>`).join("");
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-110 -110 220 220">` +
-    ring(8, 0, "M0 -14C20 -40 20 -78 0 -104C-20 -78 -20 -40 0 -14Z", ".5") +
-    ring(8, 22.5, "M0 -10C13 -30 13 -56 0 -74C-13 -56 -13 -30 0 -10Z", ".75") +
+    ring(8, 0, "M0 -14C20 -40 20 -78 0 -104C-20 -78 -20 -40 0 -14Z", ".5", tone) +
+    ring(8, 22.5, "M0 -10C13 -30 13 -56 0 -74C-13 -56 -13 -30 0 -10Z", ".75", inner) +
     `<circle r="13" fill="${core}"/></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
 const baseCss = `
 :root{
-  --ground:#FCFBFF;--panel:#FFFFFF;--ink:#15102E;--muted:#676183;--line:#E6E1F5;
+  --ground:#FDFAFF;--panel:#FFFFFF;--ink:#15102E;--muted:#676183;--line:#EBE0F4;
   --purple:#6E54FF;--purple-deep:#4B34D6;--night:#1B1242;--night-line:#3A2F6E;--lilac:#C9BEFF;
+  --pink:#FF5FA8;--rose:#D43F9C;--brand:linear-gradient(115deg,#6E54FF 0%,#9A49F2 52%,#D43F9C 100%);
   --pass:#0E9F6A;--pass-soft:#7FE7BE;--refund:#B86A00;--refund-soft:#FFC56B;
   --lift:0 1px 2px rgba(27,18,66,.05),0 14px 34px -22px rgba(27,18,66,.28);
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:96px;overflow-x:hidden;overflow-x:clip}
-body{margin:0;background:var(--ground);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:18px;line-height:1.55;position:relative;overflow-x:hidden;overflow-x:clip}
+body{margin:0;background:radial-gradient(880px 560px at 92% -6%,rgba(255,95,168,.14),transparent 62%),radial-gradient(760px 520px at -12% 30%,rgba(110,84,255,.07),transparent 60%),radial-gradient(900px 600px at 105% 68%,rgba(255,95,168,.07),transparent 60%),var(--ground);background-repeat:no-repeat;color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:18px;line-height:1.55;position:relative;overflow-x:hidden;overflow-x:clip}
 /* The flower sits behind everything, mostly off the right edge, and turns very slowly. */
 body::before{content:"";position:absolute;z-index:0;top:150px;right:-210px;width:640px;height:640px;pointer-events:none;
-  background:${flower("#6E54FF", "#6E54FF")} center/contain no-repeat;opacity:.085;animation:bloom 240s linear infinite}
+  background:${flower("#6E54FF", "#B04CF4", "#FF5FA8")} center/contain no-repeat;opacity:.11;animation:bloom 240s linear infinite}
 .wrap{position:relative;z-index:1}
 a{color:var(--purple-deep);text-underline-offset:4px}
 :focus-visible{outline:3px solid var(--purple);outline-offset:3px;border-radius:6px}
@@ -59,7 +60,7 @@ main{animation:arrive .55s cubic-bezier(.2,.7,.2,1) both}
 @keyframes arrive{from{opacity:0;transform:translateY(10px)}}
 @keyframes bloom{to{transform:rotate(360deg)}}
 @media (max-width:860px){body::before{width:420px;height:420px;right:-190px;top:110px}}
-@media (max-width:520px){body{font-size:17px}.wrap{padding:0 18px}body::before{width:320px;height:320px;right:-150px;opacity:.07}}
+@media (max-width:520px){body{font-size:17px}.wrap{padding:0 18px}body::before{width:320px;height:320px;right:-150px;opacity:.09}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}body::before,main{animation:none}}
 `;
 
@@ -102,4 +103,4 @@ ${o.extra || ""}${o.jsonLd ? `<script type="application/ld+json">${JSON.stringif
 <style>${baseCss}${o.css || ""}</style>`;
 }
 
-module.exports = { esc, head, baseCss, flower, ICON, SITE_NAME, NET, useNetwork, DEFAULT_REPO: "https://github.com/j-6-z/surety" };
+module.exports = { esc, head, baseCss, flower, MARK, ICON, SITE_NAME, NET, useNetwork, DEFAULT_REPO: "https://github.com/j-6-z/surety" };

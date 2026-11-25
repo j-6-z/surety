@@ -10,10 +10,11 @@ const { SHIELD } = require("./nav");
 
 const footerCss = `
 footer.site{position:relative;margin-top:104px;color:#D9D2F7;padding:68px 0 30px;font-size:16.5px}
-footer.site::before{content:"";position:absolute;z-index:-2;top:0;bottom:0;left:-100vmax;right:-100vmax;background:var(--night)}
+footer.site::before{content:"";position:absolute;z-index:-2;top:0;bottom:0;left:-100vmax;right:-100vmax;
+  background:radial-gradient(640px 380px at calc(50% + 540px) 0%,rgba(255,95,168,.2),transparent 65%),radial-gradient(560px 360px at calc(50% - 560px) 100%,rgba(154,73,242,.22),transparent 65%),var(--night)}
 /* The same flower as the page, pale on the dark band. */
 footer.site::after{content:"";position:absolute;z-index:-1;top:-150px;right:-230px;width:560px;height:560px;pointer-events:none;
-  background:${flower("#C9BEFF", "#C9BEFF")} center/contain no-repeat;opacity:.07;clip-path:inset(150px 0 0 0)}
+  background:${flower("#C9BEFF", "#FFC2E0", "#FF9BCB")} center/contain no-repeat;opacity:.1;clip-path:inset(150px 0 0 0)}
 footer.site a{color:#fff;text-decoration:none}
 footer.site .close{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:36px 56px;align-items:end;padding-bottom:50px;border-bottom:1px solid var(--night-line)}
 footer.site .mark{display:flex;align-items:center;gap:16px;font-size:clamp(44px,6vw,76px);font-weight:700;letter-spacing:-.04em;line-height:1;color:#fff;margin:0 0 18px}
@@ -21,7 +22,7 @@ footer.site .mark svg{width:.9em;height:.9em;flex:none}
 footer.site .pitch{font-size:21px;line-height:1.4;margin:0;max-width:34ch;color:#E9E4FF}
 footer.site .acts{display:flex;flex-wrap:wrap;gap:12px}
 footer.site .acts a{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 24px;border-radius:12px;font-weight:500;font-size:18px}
-footer.site .acts a.one{background:var(--purple);color:#fff}
+footer.site .acts a.one{background:var(--brand);color:#fff}
 footer.site .acts a.two{border:1.5px solid #5A4BA3;color:#fff}
 footer.site .acts p{flex-basis:100%;margin:6px 0 0;font-size:15px;color:#A99FD6}
 
