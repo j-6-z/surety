@@ -172,4 +172,20 @@ function createBondedApi(o) {
   return { app, sla, endpoints, run, settleReserveMs, listen, close: () => new Promise((r) => httpServer.close(r)), slaUrl: () => `${baseUrl}/.well-known/surety.json` };
 }
 
-module.exports = { createBondedApi, publicUrlFromEnv, networkFromEnv, MONAD_TESTNET, MONAD_MAINNET };
+/**
+ * createBondedApi and start listening, in one call. Reads PORT, PAY_TO_ADDRESS and the
+ * public address from the environment when they are not given.
+ * @param {object} o  the same options as createBondedApi
+ * @param {{port?: number, host?: string, log?: (m: string) => void}} [how]
+ * @returns {Promise<ReturnType<typeof createBondedApi> & {url: string}>}
+ */
+async function serve(o, how = {}) {
+  const log = how.log || console.log;
+  const api = createBondedApi({ payTo: process.env.PAY_TO_ADDRESS, publicUrl: publicUrlFromEnv(), ...o });
+  const url = await api.listen(how.port ?? Number(process.env.PORT || 4021), how.host || "0.0.0.0");
+  log(`Running at ${url}`);
+  log(`Your promise: ${url}/.well-known/surety.json`);
+  return Object.assign(api, { url });
+}
+
+module.exports = { createBondedApi, serve, publicUrlFromEnv, networkFromEnv, MONAD_TESTNET, MONAD_MAINNET };

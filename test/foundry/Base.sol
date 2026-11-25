@@ -15,6 +15,7 @@ interface Vm {
     function expectRevert(bytes4) external;
     function expectRevert(bytes calldata) external;
     function assume(bool) external pure;
+    function deal(address, uint256) external;
 }
 
 abstract contract Base {

@@ -73,7 +73,26 @@ async function check(api, { runs = 3 } = {}) {
   return results;
 }
 
-module.exports = { check, fakeRequest };
+/**
+ * Runs check() and prints one verdict per endpoint. Returns how many did not keep their promise.
+ * @param {object} api  what createBondedApi returned
+ * @param {{log?: (m: string) => void, tryCommand?: string}} [o]
+ */
+async function report(api, { log = console.log, tryCommand = "npm run try" } = {}) {
+  const results = await check(api);
+  const mark = { ok: "OK   ", tight: "TIGHT", fail: "FAIL " };
+  for (const r of results) {
+    const time = r.worstMs === undefined ? "" : `  slowest ${r.worstMs} ms of ${r.budgetMs} ms`;
+    log(`${mark[r.level]}  ${r.endpoint}${time}\n       ${r.note}`);
+  }
+  const failed = results.filter((r) => !r.ok).length;
+  log(failed
+    ? `\n${failed} endpoint(s) did not keep their promise. Fix them before you bond.`
+    : `\nEvery endpoint keeps its promise from this computer. Your host may be slower, so run "${tryCommand}" once it is live.`);
+  return failed;
+}
+
+module.exports = { check, report, fakeRequest };
 
 if (require.main === module) {
   let api;
@@ -83,14 +102,5 @@ if (require.main === module) {
     console.error(`STOPPED: app.js could not start: ${e.message}`);
     process.exit(1);
   }
-  check(api).then((results) => {
-    const mark = { ok: "OK   ", tight: "TIGHT", fail: "FAIL " };
-    for (const r of results) {
-      const time = r.worstMs === undefined ? "" : `  slowest ${r.worstMs} ms of ${r.budgetMs} ms`;
-      console.log(`${mark[r.level]}  ${r.endpoint}${time}\n       ${r.note}`);
-    }
-    const failed = results.filter((r) => !r.ok).length;
-    console.log(failed ? `\n${failed} endpoint(s) did not keep their promise. Fix them before you bond.` : "\nEvery endpoint keeps its promise from this computer. Your host may be slower, so run \"npm run try\" once it is live.");
-    process.exit(failed ? 1 : 0);
-  });
+  report(api).then((failed) => process.exit(failed ? 1 : 0));
 }

@@ -1,6 +1,6 @@
 # Static analysis
 
-**Tool:** Slither 0.11.6, run on `contracts/SuretyVault.sol` compiled with solc 0.8.24, optimizer on, EVM version cancun.
+**Tool:** Slither 0.11.6, run on `contracts/SuretyVault.sol` and `contracts/crosschain/` compiled with solc 0.8.24, optimizer on, EVM version cancun.
 
 ```
 pip install slither-analyzer
@@ -35,6 +35,16 @@ Accepted by design. The unbonding delay is at least one day and the exit window 
 **`naming-convention`, seven places.** Setter and constructor parameters start with an underscore (`_arbiter`, `_treasury`, ...). Style only.
 
 **`unindexed-event-address`, two places.** `ArbiterSet` and `TreasurySet` carry an address that is not indexed. These events fire only when the owner changes a role, which is rare, and the current values are readable from `arbiter()` and `treasury()`. Worth indexing in a future version.
+
+## Cross-chain contracts
+
+Slither reports nothing of high or medium severity in `SuretyBeacon`, `SuretyMirror` or `CoverageCodec`. Five lower findings, none of which led to a change:
+
+**`calls-loop`, low, two places** (`quote` and `broadcast`, through `_message`). The beacon calls the vault once per value per provider inside a loop. Slither warns because one reverting call would fail the whole batch. Here the callee is the vault's own view functions, which do not revert for any address, and the batch is capped at 20.
+
+**`timestamp`, low, two places** (`isCovered` and `_fresh` in the mirror). Freshness is a comparison against block time by design. The window is at least a minute and an hour by default, so seconds of drift or validator nudging change nothing that matters.
+
+**`naming-convention`, informational, one place.** `setMaxAge(_maxAge)`. Style only.
 
 ## Narrowing casts
 

@@ -1,0 +1,19 @@
+{
+  "name": "my-bonded-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A paid x402 API on Monad, bonded on Surety",
+  "type": "commonjs",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "check": "surety-provider check app.js",
+    "bond": "surety-provider bond",
+    "try": "surety-provider try"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "surety-provider": "^0.1.0"
+  }
+}

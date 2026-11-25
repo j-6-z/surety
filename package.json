@@ -9,7 +9,7 @@
     "test:mutants": "node scripts/mutants.js",
     "coverage:sol": "node scripts/forge.js coverage --report summary --no-match-coverage \"test|Mock\"",
     "coverage:sol:check": "node scripts/coverage-check.js",
-    "lint:sol": "node scripts/forge.js lint contracts/SuretyVault.sol",
+    "lint:sol": "node scripts/forge.js lint contracts/SuretyVault.sol contracts/crosschain",
     "demo": "hardhat run scripts/demo.js",
     "gas": "hardhat run scripts/gas.js",
     "bench": "hardhat run scripts/bench.js",
@@ -17,11 +17,14 @@
     "deploy:mainnet": "hardhat run scripts/deploy.js --network monadMainnet",
     "check:testnet": "node scripts/testnet-check.js",
     "check:mainnet": "node scripts/mainnet-check.js",
+    "crosschain": "node scripts/crosschain.js",
     "relay": "node verifier/server.js",
     "api": "node marketdata/server.js",
     "check:api": "node scripts/api-check.js",
     "start": "node start.js",
-    "build": "node scripts/generate.js"
+    "build": "node scripts/generate.js",
+    "sync:kit": "node scripts/sync-kit.js",
+    "pack:provider": "npm pack ./packages/provider --dry-run"
   },
   "keywords": [
     "x402",
@@ -34,10 +37,14 @@
   "author": "Jay Turner",
   "license": "MIT",
   "devDependencies": {
+    "@layerzerolabs/lz-evm-messagelib-v2": "^3.0.168",
+    "@layerzerolabs/lz-evm-protocol-v2": "^3.0.168",
+    "@layerzerolabs/oapp-evm": "^0.4.1",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/contracts": "^5.6.1",
     "hardhat": "^2.29.2",
-    "solc": "^0.8.24"
+    "solc": "^0.8.24",
+    "solidity-bytes-utils": "^0.8.4"
   },
   "dependencies": {
     "@x402/core": "^2.32.0",
@@ -55,5 +62,10 @@
   "engines": {
     "node": ">=18"
   },
-  "type": "commonjs"
+  "type": "commonjs",
+  "overrides": {
+    "@eth-optimism/contracts": {
+      "ethers": "$ethers"
+    }
+  }
 }

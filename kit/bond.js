@@ -117,23 +117,33 @@ async function bond(c) {
   return { provider: me, active, bond: after.bond, slaUrl, vault: net.vault, callUrls };
 }
 
-module.exports = { bond };
+/// What to tell a person when bonding stops, in plain words.
+function explain(e) {
+  return e.expected ? e.message
+    : e.code === "INSUFFICIENT_FUNDS" ? "This wallet has no MON to pay the network fee."
+    : e.shortMessage || e.message;
+}
+
+/**
+ * bond() using the wallet key and network named in the environment (PRIVATE_KEY, SURETY_NETWORK,
+ * and optionally SURETY_URL, RPC_URL, VAULT_ADDRESS).
+ * @param {{url: string, amount?: string, env?: NodeJS.ProcessEnv, log?: (m: string) => void}} o
+ */
+async function bondFromEnv({ url, amount, env = process.env, log }) {
+  if (!env.PRIVATE_KEY) throw stop("Put your wallet key in .env as PRIVATE_KEY=... (copy .env.example to .env first).");
+  const key = env.PRIVATE_KEY.startsWith("0x") ? env.PRIVATE_KEY : `0x${env.PRIVATE_KEY}`;
+  const wallet = new ethers.Wallet(key, new ethers.JsonRpcProvider(require("./surety").networkFromEnv(env).rpc));
+  return bond({ url, amount, wallet, suretyUrl: env.SURETY_URL, vaultAddress: env.VAULT_ADDRESS, log });
+}
+
+module.exports = { bond, bondFromEnv, explain };
 
 if (require.main === module) {
   require("dotenv").config();
-  const env = process.env;
-  (async () => {
-    if (!env.PRIVATE_KEY) throw stop("Put your wallet key in .env as PRIVATE_KEY=... (copy .env.example to .env first).");
-    const key = env.PRIVATE_KEY.startsWith("0x") ? env.PRIVATE_KEY : `0x${env.PRIVATE_KEY}`;
-    const wallet = new ethers.Wallet(key, new ethers.JsonRpcProvider(require("./surety").networkFromEnv(env).rpc));
-    await bond({ url: process.argv[2], amount: process.argv[3], wallet, suretyUrl: env.SURETY_URL, vaultAddress: env.VAULT_ADDRESS });
-  })().then(
+  bondFromEnv({ url: process.argv[2], amount: process.argv[3] }).then(
     () => process.exit(0),
     (e) => {
-      const m = e.expected ? e.message
-        : e.code === "INSUFFICIENT_FUNDS" ? "This wallet has no MON to pay the network fee. Get some from the Monad testnet faucet."
-        : e.shortMessage || e.message;
-      console.error(`STOPPED: ${m}`);
+      console.error(`STOPPED: ${explain(e)}`);
       process.exit(1);
     }
   );

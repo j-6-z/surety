@@ -43,13 +43,30 @@ Each row says how far the control goes, and what is left over.
 | T16 | **The relay is used to reach internal addresses** (SSRF) | SLA and provider URLs must be https and resolve to public addresses; redirects are refused. | DNS could change between the check and the request. |
 | T17 | **Block timestamp is nudged** by a validator | Delays and windows are measured in days. | A claim within seconds of midnight UTC can land in either day's bucket. |
 
+## Cross-chain: the beacon and the mirror
+
+`SuretyBeacon` (Monad) and `SuretyMirror` (Base) carry "is this provider bonded?" to another chain over LayerZero V2. They are described in [CROSSCHAIN.md](../CROSSCHAIN.md). Neither holds funds and neither has any role on the vault, so nothing here can move USDC. What is at stake is the **truth of what the mirror says**: a contract or agent on Base may decide whether to pay a provider on the strength of it. They are live on mainnet: beacon `0xf25b3F37a50fd9f938C836A8926ECC7786F958fe` on Monad, mirror `0x0593c77e43704C2a3f8512f3a4645ce57860FBED` on Base.
+
+| # | Attack | What stops it | What is left |
+| --- | --- | --- | --- |
+| X1 | **A forged report** is delivered to the mirror | `lzReceive` accepts calls only from the LayerZero endpoint, only for messages whose sender is the beacon set as peer, and only from the Monad endpoint id fixed at deploy. | The route's DVNs are trusted. If the required DVNs collude or are compromised they can deliver anything. The set is named by the pair itself at deploy (LayerZero's default for this route is a placeholder), so only the owner can change it. |
+| X2 | **The caller of `broadcast` lies** about a provider | The caller supplies only addresses. Every value is read from the vault inside the call. | None for content. The caller does choose which providers and when, so a provider can avoid refreshing bad news about itself (see X4). |
+| X3 | **An old report arrives after a newer one** (LayerZero V2 does not order delivery) and overwrites it | Each provider's record keeps the report with the highest (time read on Monad, nonce). Fuzzed over arbitrary delivery orders. | Two beacons live at once, sending in the same second, would tie-break on unrelated nonces. Only one beacon is ever the peer. |
+| X4 | **A provider loses cover and nobody tells the mirror** | A report stops counting after `maxAge` (1 hour by default). Anyone can broadcast, including an agent about to pay. | Up to `maxAge` of false "covered". A queued bond stays slashable on Monad for the 7-day unbonding period, so a claim in that window is still paid. A provider whose daily refund limit is used up can read as covered until refreshed. |
+| X5 | **A message is sent with too little gas** to execute, so the mirror never updates | The beacon computes the destination gas from the batch size; the caller cannot lower it. Defaults are measured and held to a 15% margin by a test. | A chain that prices storage higher than assumed needs the owner to raise the setting. A delivery that runs out of gas changes nothing and can be retried by anyone through the endpoint. |
+| X6 | **A malformed or future-format message** | The mirror checks the length and the version byte and reverts on either. A revert leaves the message unexecuted; it does not block later ones. | An undeliverable message stays in the endpoint until the owner clears it. |
+| X7 | **The mirror's owner key is stolen** | Ownership moves in two steps. The Monad-only check cannot be changed after deploy. | The owner can name a different beacon on Monad as peer, and that beacon can report anything. The owner is the deploying wallet today, a single key. |
+| X8 | **Griefing by broadcasting** many reports | Each broadcast costs the caller a LayerZero fee. Batches are capped at 20. A delivery only writes storage. | None that costs anyone but the caller. |
+| X9 | **Replay** of a delivered message | The endpoint delivers each message once. If one were repeated, the mirror ignores a report that is not newer than what it holds. | None. |
+
 ## What has and has not been done
 
 Done:
 
-- 100% line, statement, branch and function coverage of `SuretyVault.sol` from the Foundry suite.
+- 100% line, statement, branch and function coverage of `SuretyVault.sol` and the three cross-chain contracts from the Foundry suite.
 - Seven invariants checked over 25,600 random calls each, eight fuzz properties over 1,000 inputs each, fifteen unit tests for refusal paths.
-- A mutation check: 18 deliberate bugs planted one at a time, all 18 caught (`npm run test:mutants`).
+- For the cross-chain contracts: twenty-five unit tests and five fuzz properties, including delivery in arbitrary order.
+- A mutation check: 43 deliberate bugs planted one at a time (18 in the vault, 25 in the cross-chain contracts), all 43 caught (`npm run test:mutants`).
 - Static analysis with Slither: no high-severity findings (see [SLITHER.md](SLITHER.md)).
 
 Not done:
@@ -58,3 +75,4 @@ Not done:
 - The owner is a single key, with no timelock.
 - One relay, with no dispute process.
 - No monitoring or alerting on claims.
+- The cross-chain contracts are tested against a mock LayerZero endpoint. On mainnet they have delivered only a handful of reports.

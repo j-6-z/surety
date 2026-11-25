@@ -364,6 +364,10 @@ describe("app.js (Vercel entry point)", () => {
     const saved = { ...process.env };
     for (const k of ["PRIVATE_KEY", "VAULT_ADDRESS", "PUBLIC_URL", "VERCEL", "VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL"]) delete process.env[k];
     Object.assign(process.env, env);
+    // A developer's own .env (hardhat loads it) must not decide what this test sees.
+    for (const k of ["SURETY_NETWORK", "ARBITER_KEY", "PROVIDER_ADDRESS", "PAY_TO_ADDRESS", "DEMO_KEY", "USDC_ADDRESS", "RPC_URL", "EXPLORER_URL"]) {
+      if (!(k in env)) delete process.env[k];
+    }
     delete require.cache[require.resolve("../app")];
     try {
       return require("../app");

@@ -1,0 +1,9 @@
+{
+  "mainnet": {
+    "beacon": "0xf25b3F37a50fd9f938C836A8926ECC7786F958fe",
+    "mirror": "0x0593c77e43704C2a3f8512f3a4645ce57860FBED",
+    "vault": "0x8b8d4a18D9abB59Cc499c62DC46032A1AbB95415",
+    "hubEid": 30390,
+    "spokeEid": 30184
+  }
+}
