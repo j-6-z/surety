@@ -1,0 +1,39 @@
+# Copy this file to .github/workflows/test.yml to run every check on each push.
+name: tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: JavaScript tests (relay, x402, kit, guard, site)
+        run: npx hardhat test
+      - name: Solidity unit, fuzz and invariant tests
+        run: npm run test:sol
+      - name: Contract coverage must stay at 100%
+        run: npm run coverage:sol:check
+      - name: Slither (fails on any high-severity finding)
+        run: |
+          pip install slither-analyzer
+          export PATH="$PWD/node_modules/@foundry-rs/forge-linux-amd64/bin:$PATH"
+          slither .
+  mutants:
+    # Slower: plants 18 bugs one at a time and checks the tests catch each.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:mutants
