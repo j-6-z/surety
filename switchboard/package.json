@@ -1,0 +1,27 @@
+{
+  "name": "switchboard",
+  "version": "0.1.0",
+  "description": "One endpoint for AI agents: routes x402 calls to the best Surety-bonded provider on Monad, with automatic fallback and on-chain refunds",
+  "main": "sdk.js",
+  "scripts": {
+    "start": "node start.js",
+    "test": "node --test test/*.test.js",
+    "call": "node examples/call.js"
+  },
+  "keywords": ["x402", "monad", "ai-agents", "router", "surety"],
+  "author": "Jay Turner",
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "type": "commonjs",
+  "private": true,
+  "dependencies": {
+    "@x402/core": "^2.32.0",
+    "@x402/evm": "^2.32.0",
+    "@x402/express": "^2.32.0",
+    "@x402/fetch": "^2.32.0",
+    "dotenv": "^18.0.10",
+    "ethers": "^6.17.0",
+    "express": "^5.3.0",
+    "viem": "^2.58.4"
+  }
+}

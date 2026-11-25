@@ -1,0 +1,11 @@
+{
+  "price.mon": {
+    "description": "MON price in USD",
+    "paths": ["/v1/price/mon"]
+  },
+  "pool.v3": {
+    "description": "Price and reserves for a Uniswap-V3-style pool",
+    "paths": ["/v1/pool/:address"],
+    "params": ["address"]
+  }
+}

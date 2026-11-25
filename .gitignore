@@ -15,6 +15,11 @@ coverage/
 coverage.json
 typechain-types/
 
+# ---- Foundry build output ----
+forge-out/
+forge-cache/
+lcov.info
+
 # ---- Relay runtime data (evidence files, call log) ----
 data/
 

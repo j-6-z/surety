@@ -1,0 +1,36 @@
+# Foundry runs the Solidity-level fuzz and invariant tests in test/foundry.
+# The JavaScript tests (relay, x402, site) still run under Hardhat:  npm test
+[profile.default]
+src = "contracts"
+test = "test/foundry"
+out = "forge-out"
+cache_path = "forge-cache"
+libs = ["node_modules"]
+remappings = [
+  "forge-std/=node_modules/forge-std/src/",
+  "@openzeppelin/=node_modules/@openzeppelin/",
+]
+solc_version = "0.8.24"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+
+# Lint findings are recorded in audit/SLITHER.md. Run them with:  npm run lint:sol
+[lint]
+lint_on_build = false
+
+[fuzz]
+runs = 1000
+
+[invariant]
+runs = 256          # sequences
+depth = 100         # calls per sequence
+fail_on_revert = false
+show_metrics = false # the per-action call table; set to true to see what the fuzzer exercised
+
+# A longer run before a release:  npm run test:sol:deep
+[profile.deep.fuzz]
+runs = 20000
+[profile.deep.invariant]
+runs = 2000
+depth = 200

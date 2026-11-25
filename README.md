@@ -4,15 +4,46 @@
 
 An API provider posts a USDC bond. Agents call the provider through the Surety relay and pay with x402 as usual. If a paid call comes back too slow, with an error status or with the wrong response shape, the agent is refunded on-chain from the provider's bond, automatically.
 
-> **Status: experimental.** Live on Monad testnet, unaudited, and run by a single trusted relay. Do not use it with real funds. See [Known limits](#known-limits).
+> **Status: beta, not audited.** Live on Monad mainnet with real USDC, and run by a single trusted relay. Bond only what you can afford to lose. See the [threat model](audit/THREAT_MODEL.md) and [Known limits](#known-limits).
 
-| | |
-| --- | --- |
-| Live at | https://www.surety.buzz |
-| Network | Monad Testnet (chain ID 10143) |
-| SuretyVault | `0xf3F9e32De47a143149F7398f25f264b98a01273C` |
-| Settlement asset | Testnet USDC `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
-| First bonded provider | `0xbef73fc59e4FF99cB3395Ab0afe8CBD35C598292` (Surety Market Data API) |
+![contract coverage](https://img.shields.io/badge/contract%20coverage-100%25-brightgreen) ![invariants](https://img.shields.io/badge/invariants-7%20passing-brightgreen) ![mutation check](https://img.shields.io/badge/planted%20bugs%20caught-18%2F18-brightgreen) ![slither](https://img.shields.io/badge/slither-0%20high-brightgreen)
+
+| | Mainnet | Testnet |
+| --- | --- | --- |
+| Network | Monad (chain ID 143) | Monad Testnet (chain ID 10143) |
+| SuretyVault | `0x8b8d4a18D9abB59Cc499c62DC46032A1AbB95415` | `0xf3F9e32De47a143149F7398f25f264b98a01273C` |
+| Settlement asset | USDC `0x754704Bc059F8C67012fEd69BC8A327a5aafb603` | Test USDC `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
+| Site | https://www.surety.buzz | |
+
+The testnet vault is an earlier build without the per-day refund limit.
+
+## Security and testing
+
+The contract has not been independently audited. This is what has been done instead, and how to check each claim yourself.
+
+| Check | Result | Run it |
+| --- | --- | --- |
+| Coverage of `SuretyVault.sol` | 100% of lines, statements, branches and functions | `npm run coverage:sol:check` |
+| Invariants | 7 properties, each held over 256 random sequences of 100 calls | `npm run test:sol` |
+| Fuzz properties | 8, each over 1,000 random inputs | `npm run test:sol` |
+| Unit tests | 15, one for every way the vault refuses a call | `npm run test:sol` |
+| Mutation check | 18 bugs planted one at a time, 18 caught | `npm run test:mutants` |
+| Static analysis | Slither: 0 high, 1 medium (false positive), 4 low (accepted) | `slither .` |
+| Relay, x402, kit, guard and site | 115 JavaScript tests | `npm test` |
+
+The invariants, in plain words:
+
+1. The vault's USDC balance always equals the sum of every bond and every backer's stake. It can never owe more than it holds.
+2. That balance also equals everything that came in minus everything that went out, counted independently.
+3. All backers together can never withdraw more than their provider's backing holds.
+4. Share totals add up, and nothing is queued for exit that is not there.
+5. No rule is broken along the way: the daily refund limit is never bypassed, a claim is never paid twice or by anyone but the arbiter, one claim never exceeds its cap, and exits respect the delay and the window.
+6. The contract's running total of a day's refunds always matches an independent count.
+7. The lifetime claim counters match the refunds really paid.
+
+Read next: [threat model](audit/THREAT_MODEL.md) (17 attacks, what stops each, what is left over) and [static analysis notes](audit/SLITHER.md) (every finding and why it stands).
+
+The Solidity tests are in `test/foundry`. The first run downloads Foundry by itself (`scripts/forge.js`), so nothing needs installing by hand. To run all of this on every push, copy `ci/github-workflow.yml` to `.github/workflows/test.yml`.
 
 ## Try it in two minutes
 

@@ -4,6 +4,12 @@
   "description": "Bond-backed refunds for x402 AI agent payments on Monad",
   "scripts": {
     "test": "hardhat test",
+    "test:sol": "node scripts/forge.js test",
+    "test:sol:deep": "node scripts/forge.js test --fuzz-runs 20000",
+    "test:mutants": "node scripts/mutants.js",
+    "coverage:sol": "node scripts/forge.js coverage --report summary --no-match-coverage \"test|Mock\"",
+    "coverage:sol:check": "node scripts/coverage-check.js",
+    "lint:sol": "node scripts/forge.js lint contracts/SuretyVault.sol",
     "demo": "hardhat run scripts/demo.js",
     "gas": "hardhat run scripts/gas.js",
     "bench": "hardhat run scripts/bench.js",

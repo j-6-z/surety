@@ -14,3 +14,10 @@ contracts
 hardhat.config.js
 render.yaml
 kit
+foundry.toml
+audit
+ci
+brand
+forge-out
+forge-cache
+slither.config.json
