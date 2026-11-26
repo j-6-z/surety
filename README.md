@@ -30,7 +30,7 @@ The contract has not been independently audited. This is what has been done inst
 | Mutation check | 77 bugs planted one at a time (18 in the vault, 59 cross-chain), 77 caught | `npm run test:mutants` |
 | Cross-chain contracts | 59 more tests incl. 4 invariants, 100% coverage, delivery in any order fuzzed ([details](CROSSCHAIN.md)) | `npm run test:sol` |
 | Static analysis | Slither: 0 high after review, 4 medium (each explained in the [notes](audit/SLITHER.md)) | `slither .` |
-| Relay, x402, kit, guard, site and scripts | 140 JavaScript tests | `npm test` |
+| Relay, x402, kit, guard, site and scripts | 145 JavaScript tests | `npm test` |
 
 The invariants, in plain words:
 
@@ -84,7 +84,7 @@ npm test          # 62 tests
 npm run demo      # one healthy call, two refunded ones
 ```
 
-`npm run gas` prints gas per vault operation. `npm run bench` measures how much time the relay adds to a call.
+`npm run gas` prints gas per vault operation. `npm run bench` measures how much time the relay adds to a call. `npm run bench:parallel` shows which Surety transactions Monad would have to execute twice in one block, and why ([PARALLEL.md](PARALLEL.md)).
 
 ## What's in here
 
