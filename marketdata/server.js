@@ -46,8 +46,14 @@ const POOL_SCHEMA = {
  * @param {{name: string, version: string}} [o.tokenDomain]  the token's EIP-712 name and version (default: USDC, 2)
  * @param {number} [o.maxLatencyMs]   what the SLA promises (includes payment settlement time)
  * @param {string} [o.publicUrl]      where the API is reachable; defaults to the local address
- * @param {{slowMs?: number, promiseMs?: number}} [o.demo]
- *        when set, adds GET /v1/demo/slow: a paid endpoint built to miss its promise, for the homepage demo
+ * @param {{slowMs?: number, promiseMs?: number, payTo?: string}} [o.demo]
+ *        when set, adds GET /v1/demo/slow: a paid endpoint built to miss its promise, for the homepage demo.
+ *        With demo.payTo the demo is its own provider: the endpoint leaves this API's SLA, gets an SLA
+ *        document of its own at /.well-known/surety-demo.json, and is paid to demo.payTo. Its refunds
+ *        then come out of the demo provider's bond and never touch this API's record.
+ * @param {{id?: string, registry?: string}} [o.agent]
+ *        ERC-8004 identity. `registry` is the Identity Registry as "eip155:<chain>:<address>". With an
+ *        `id`, the SLA carries "agentId", which is how a reputation service links the agent to the bond.
  * @param {{provider: string, vaultAddress: string, repoUrl?: string}} [o.landing]
  *        when set, browsers get a homepage at "/" (agents asking for JSON still get JSON)
  */
@@ -63,8 +69,9 @@ function createMarketApi(o) {
       : null
   );
   const x402 = new x402ResourceServer(new HTTPFacilitatorClient({ url: o.facilitatorUrl })).register(o.network, scheme);
-  const paid = (description) => ({
-    accepts: { scheme: "exact", network: o.network, payTo: o.payTo, price },
+  const demoApart = Boolean(o.demo && o.demo.payTo);
+  const paid = (description, payTo = o.payTo) => ({
+    accepts: { scheme: "exact", network: o.network, payTo, price },
     description,
     mimeType: "application/json",
   });
@@ -73,12 +80,28 @@ function createMarketApi(o) {
     version: 1,
     baseUrl,
     payTo: o.payTo,
+    ...(o.agent && o.agent.id ? { agentId: o.agent.id } : {}),
     endpoints: [
       { method: "GET", path: "/v1/price/mon", maxLatencyMs, responseSchema: PRICE_SCHEMA },
       { method: "GET", path: "/v1/pool/:address", maxLatencyMs, responseSchema: POOL_SCHEMA },
-      ...(o.demo ? [{ method: "GET", path: "/v1/demo/slow", maxLatencyMs: o.demo.promiseMs ?? 500 }] : []),
+      ...(o.demo && !demoApart ? [demoEndpoint()] : []),
     ],
   });
+  // ERC-8004 registration file: what the agent's on-chain record points at.
+  const agentFile = () => ({
+    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+    name: "Surety Market Data API",
+    description: "Monad prices read on-chain, sold per call over x402. Bonded on Surety: a call that misses its SLA is refunded on-chain from the bond.",
+    image: `${baseUrl}/og.png`,
+    services: [{ name: "web", endpoint: baseUrl }, { name: "surety-sla", endpoint: `${baseUrl}/.well-known/surety.json`, version: "1" }],
+    x402Support: true,
+    active: true,
+    registrations: o.agent && o.agent.id && o.agent.registry ? [{ agentId: Number(o.agent.id), agentRegistry: o.agent.registry }] : [],
+    supportedTrust: ["reputation", "crypto-economic"],
+  });
+  const demoEndpoint = () => ({ method: "GET", path: "/v1/demo/slow", maxLatencyMs: o.demo.promiseMs ?? 500 });
+  // "demo": true tells anyone scoring providers that this one fails on purpose.
+  const demoSla = () => ({ version: 1, demo: true, baseUrl, payTo: o.demo.payTo, endpoints: [demoEndpoint()] });
 
   const app = express();
   app.disable("x-powered-by");
@@ -100,6 +123,8 @@ function createMarketApi(o) {
   });
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.get("/.well-known/surety.json", (_req, res) => res.json(sla()));
+  app.get("/.well-known/agent-registration.json", (_req, res) => res.json(agentFile()));
+  if (demoApart) app.get("/.well-known/surety-demo.json", (_req, res) => res.json(demoSla()));
 
   // Reject bad input BEFORE the paywall, so nobody pays for a typo.
   app.get("/v1/pool/:address", (req, res, next) =>
@@ -110,7 +135,7 @@ function createMarketApi(o) {
       {
         "GET /v1/price/mon": paid("MON price in USD, on-chain"),
         "GET /v1/pool/:address": paid("Pool price and reserves, on-chain"),
-        ...(o.demo ? { "GET /v1/demo/slow": paid("Demo: deliberately slower than its promise") } : {}),
+        ...(o.demo ? { "GET /v1/demo/slow": paid("Demo: deliberately slower than its promise", o.demo.payTo || o.payTo) } : {}),
       },
       x402
     )
@@ -140,7 +165,11 @@ function createMarketApi(o) {
         resolve(baseUrl);
       });
     });
-  return { app, listen, close: () => new Promise((r) => httpServer.close(r)), slaUrl: () => `${baseUrl}/.well-known/surety.json` };
+  return {
+    app, listen, close: () => new Promise((r) => httpServer.close(r)),
+    slaUrl: () => `${baseUrl}/.well-known/surety.json`,
+    demoSlaUrl: () => (demoApart ? `${baseUrl}/.well-known/surety-demo.json` : null),
+  };
 }
 
 module.exports = { createMarketApi, PRICE_SCHEMA, POOL_SCHEMA };

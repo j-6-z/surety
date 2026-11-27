@@ -79,6 +79,12 @@ function settledTx(headers) {
  * @param {string[]} [o.providers]            if set, only these provider addresses may be paid
  * @param {boolean} [o.bondedOnly]            only pay providers whose calls are covered right now (default true)
  * @param {number} [o.minTrustScore]          only pay providers at or above this score, 0 to 100 (default 0)
+ * @param {string} [o.tallyUrl]               a Tally server. minTrustScore is then checked against Tally's score,
+ *                                            which is rebuilt from the chain alone, instead of the relay's own.
+ *                                            A provider Tally marks as a demo is never paid.
+ * @param {"relay"|"block"} [o.tallyFallback] when Tally cannot be read, is stale, or has no score for a provider:
+ *                                            "relay" uses the relay's score (default), "block" refuses the payment
+ * @param {number} [o.tallyMaxAgeMs]          how old Tally's scores may be (default 24 hours)
  * @param {string} [o.token]                  the only token payments may be made in (default: Monad testnet USDC)
  * @param {string} [o.logFile]                where to keep the spend log; also makes the daily budget survive restarts
  * @param {number} [o.trustTtlMs]             how long a provider's record is reused (default 60 s)
@@ -95,6 +101,10 @@ function createGuard(o) {
   const minTrustScore = o.minTrustScore ?? 0;
   const token = (o.token || MONAD_TESTNET_USDC).toLowerCase();
   const trustTtlMs = o.trustTtlMs ?? 60_000;
+  const tally = o.tallyUrl ? new URL(o.tallyUrl) : null;
+  const tallyFallback = o.tallyFallback || "relay";
+  if (tallyFallback !== "relay" && tallyFallback !== "block") throw new Error('tallyFallback must be "relay" or "block".');
+  const tallyMaxAgeMs = o.tallyMaxAgeMs ?? 24 * 3_600_000;
   let allow = null;
   if (o.providers) {
     for (const a of o.providers) if (!ADDRESS.test(a)) throw new Error(`providers: "${a}" is not an address.`);
@@ -146,6 +156,33 @@ function createGuard(o) {
     return value;
   }
 
+  // ---- Tally's scores (one small free file for every provider), reused like the relay's records
+  let tallyCache = null;
+  /// { score, demo } for this provider, or null when Tally cannot vouch for it right now.
+  async function tallyOf(provider) {
+    if (!tallyCache || now() - tallyCache.at >= trustTtlMs) {
+      let byAddr = null;
+      try {
+        const res = await f(new URL("/scores.json", tally));
+        if (!res.ok) throw new Error(String(res.status));
+        const d = await res.json();
+        if (Array.isArray(d.providers) && Number.isFinite(d.updatedAt) && now() - d.updatedAt * 1000 <= tallyMaxAgeMs) {
+          byAddr = new Map();
+          for (const p of d.providers) {
+            const score = Number(p.score);
+            if (ADDRESS.test(p.provider || "") && Number.isFinite(score) && score >= 0 && score <= 100) {
+              byAddr.set(p.provider.toLowerCase(), { score, demo: Array.isArray(p.flags) && p.flags.includes("demo") });
+            }
+          }
+        }
+      } catch {
+        /* unreachable: treated like stale */
+      }
+      tallyCache = { at: now(), byAddr };
+    }
+    return tallyCache.byAddr ? tallyCache.byAddr.get(provider.toLowerCase()) || null : null;
+  }
+
   /** Use this as the fetch underneath your x402 client. Free requests pass straight through. */
   async function guardedFetch(input, init) {
     const req = new Request(input, init);
@@ -169,10 +206,18 @@ function createGuard(o) {
     if (maxPerCall !== null && pay.amount > maxPerCall) {
       throw block("over_call_cap", `This call costs ${toUsdc(pay.amount)} USDC. Your limit per call is ${toUsdc(maxPerCall)}.`, { amount: toUsdc(pay.amount) });
     }
-    if (bondedOnly || minTrustScore > 0) {
+    if (bondedOnly || minTrustScore > 0 || tally) {
       const t = await trustOf(provider);
       if (bondedOnly && !t.active) throw block("provider_not_bonded", `${provider} has no active bond, so a failed call would not be refunded.`);
-      if (Number(t.score) < minTrustScore) throw block("trust_too_low", `${provider} has a trust score of ${t.score}. You require ${minTrustScore}.`, { score: t.score });
+      // Whether the bond is live is always the relay's to say. The score is Tally's when you asked for that.
+      let score = Number(t.score), source = "relay";
+      if (tally) {
+        const v = await tallyOf(provider);
+        if (v && v.demo) throw block("demo_provider", `${provider} is a demo provider that fails on purpose.`);
+        if (v) { score = v.score; source = "tally"; }
+        else if (tallyFallback === "block") throw block("tally_unavailable", `Tally has no current score for ${provider}, so the payment was not sent.`);
+      }
+      if (score < minTrustScore) throw block("trust_too_low", `${provider} has a trust score of ${score}. You require ${minTrustScore}.`, { score, scoreSource: source });
     }
     rollDay();
     if (dailyBudget !== null && spent + pending + pay.amount > dailyBudget) {
@@ -213,6 +258,7 @@ function createGuard(o) {
       maxPerCall: maxPerCall === null ? null : toUsdc(maxPerCall),
       dailyBudget: dailyBudget === null ? null : toUsdc(dailyBudget),
       providers: allow ? [...allow] : null, bondedOnly, minTrustScore, token,
+      scoreSource: tally ? "tally" : "relay",
     },
   };
 }

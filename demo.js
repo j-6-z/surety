@@ -22,6 +22,8 @@ const PATHS = { good: "/v1/price/mon", slow: "/v1/demo/slow" };
  * @param {object} c
  * @param {import("ethers").Wallet} c.wallet  pays for demo calls
  * @param {string} [c.providerAddress]       the provider being called (default: the same wallet)
+ * @param {string} [c.slowProviderAddress]   a separate provider for the slow demo, so its refunds
+ *                                           stay off the real API's record (default: providerAddress)
  * @param {string} c.vaultAddress @param {string} c.usdcAddress @param {string} c.network
  * @param {string} c.publicUrl               where the relay is reachable
  * @param {string} [c.explorer]              block explorer base for transaction links
@@ -31,6 +33,9 @@ const PATHS = { good: "/v1/price/mon", slow: "/v1/demo/slow" };
  */
 function createDemo(c) {
   const provider = c.providerAddress || c.wallet.address; // the provider being called; the wallet only pays
+  const slowProvider = c.slowProviderAddress || provider;
+  const target = { good: provider, slow: slowProvider };
+  const slaPath = { good: "/.well-known/surety.json", slow: slowProvider === provider ? "/.well-known/surety.json" : "/.well-known/surety-demo.json" };
   const client = createSuretyClient({
     relayUrl: c.publicUrl,
     fetch: createPayingFetch(c.wallet.privateKey, c.network, c.usdcAddress).fetch,
@@ -44,14 +49,14 @@ function createDemo(c) {
   const last = { good: null, slow: null };
   const used = { day: "", good: 0, slow: 0 };
   let running = false;
-  let promises = null;
+  const promises = {};
 
   async function promisedMs(kind) {
-    if (!promises) {
-      const sla = await (await fetch(`${c.publicUrl}/.well-known/surety.json`)).json();
-      promises = Object.fromEntries(sla.endpoints.map((e) => [e.path, e.maxLatencyMs]));
+    if (!promises[kind]) {
+      const sla = await (await fetch(c.publicUrl + slaPath[kind])).json();
+      promises[kind] = Object.fromEntries(sla.endpoints.map((e) => [e.path, e.maxLatencyMs]));
     }
-    return promises[PATHS[kind]] ?? null;
+    return promises[kind][PATHS[kind]] ?? null;
   }
 
   const replay = (kind, note) => (last[kind] ? { ...last[kind], replay: true, note } : null);
@@ -73,7 +78,7 @@ function createDemo(c) {
     running = true;
     try {
       if (kind === "slow") {
-        const [p, min] = await Promise.all([vault.providers(provider), vault.minProviderBond()]);
+        const [p, min] = await Promise.all([vault.providers(slowProvider), vault.minProviderBond()]);
         if (p.bond - p.bondPendingWithdraw < min + margin) {
           const r = replay(kind, "The bond is close to its minimum, so no new refund was triggered. This is the most recent one.");
           return r
@@ -81,7 +86,7 @@ function createDemo(c) {
             : { http: 409, body: { error: "The bond is too close to its minimum to demo another refund right now." } };
         }
       }
-      const r = await client.call(provider, PATHS[kind]);
+      const r = await client.call(target[kind], PATHS[kind]);
       const data = await r.response.json().catch(() => null);
       const receipt = parseReceipt(r.response.headers);
       used[kind] += 1;

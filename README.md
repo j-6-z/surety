@@ -154,6 +154,8 @@ const guard = createGuard({ relayUrl, maxPerCall: "0.01", dailyBudget: "1", minT
 const payingFetch = wrapFetchWithPayment(guard.fetch, x402client);
 ```
 
+Add `tallyUrl` and `minTrustScore` is checked against Tally's score, which is rebuilt from chain data alone, instead of the relay's own. If Tally can't be read or is over a day old the guard uses the relay's score, or refuses the payment with `tallyFallback: "block"`.
+
 It is a guardrail inside the agent's process, not a vault: it does not protect against a stolen key.
 
 **Trust score v0 (0 to 100).** 0 if the provider is inactive. Otherwise 60 points for pass rate over paid calls (counted as 50% until the relay has seen 20) plus 40 points for committed cover, meaning bond and backing not queued for exit, with full marks at 10x the minimum bond.

@@ -8,10 +8,14 @@ function configFromEnv(env = process.env) {
   const net = networkFromEnv(env);
   const payTo = env.SWITCHBOARD_PAY_TO || "";
   if (payTo && !ethers.isAddress(payTo)) throw new Error("SWITCHBOARD_PAY_TO must be an address (not a key).");
+  const tallyUrl = (env.TALLY_URL || "").trim();
+  if (tallyUrl && !/^https:\/\//.test(tallyUrl)) throw new Error("TALLY_URL must be an https address.");
   const extraProviders = (env.EXTRA_PROVIDERS || "").split(",").map((a) => a.trim()).filter((a) => ethers.isAddress(a));
   const registry = createRegistry({
     suretyUrl: net.surety, caip: net.caip, usdc: net.usdc, rpc: net.rpc, vaultAddress: net.vault,
     extraProviders, ttlMs: Number(env.INDEX_TTL_MS || 60_000),
+    tallyUrl: tallyUrl || undefined,
+    tallyMaxAgeMs: env.TALLY_MAX_AGE_HOURS ? Number(env.TALLY_MAX_AGE_HOURS) * 3_600_000 : undefined,
   });
   return {
     registry,

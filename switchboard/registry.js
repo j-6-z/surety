@@ -5,6 +5,9 @@
 //   2. the vault on-chain              each provider's SLA link (metadataURI)
 //   3. each provider's SLA document    its endpoints, and optionally a "capability" per endpoint
 //   4. an unpaid probe of the endpoint is it up, how fast, and what it charges (the 402 answer)
+//   5. Tally's /scores.json (optional) a trust score rebuilt from chain data alone. When Tally is set
+//                                      and fresh, its score replaces the relay's, so ranking no longer
+//                                      takes the relay's word for how reliable a provider is
 //
 // Nothing here pays or signs. A probe is a normal request without payment: the provider
 // answers 402 with its price and nobody is charged.
@@ -26,6 +29,8 @@ const PROBE_ADDRESS = "0x0000000000000000000000000000000000000001";
  * @param {{ providers(addr: string): Promise<any> }} [o.vault]   reads metadataURI; built from rpc+vaultAddress if absent
  * @param {string} [o.rpc] @param {string} [o.vaultAddress]
  * @param {string[]} [o.extraProviders]   addresses to index even if Surety's directory doesn't list them
+ * @param {string} [o.tallyUrl]           a Tally server: rank by its chain-verified score instead of the relay's
+ * @param {number} [o.tallyMaxAgeMs]      ignore Tally scores older than this (default 24 hours)
  * @param {object} [o.catalog]            capability -> { description, paths, params }
  * @param {typeof fetch} [o.fetch]
  * @param {number} [o.ttlMs]              how long an index stays fresh
@@ -40,6 +45,29 @@ function createRegistry(o) {
   const probeTimeoutMs = o.probeTimeoutMs ?? 5_000;
   const catalog = o.catalog || defaultCatalog;
   const surety = o.suretyUrl.replace(/\/+$/, "");
+  const tally = o.tallyUrl ? o.tallyUrl.replace(/\/+$/, "") : null;
+  const tallyMaxAgeMs = o.tallyMaxAgeMs ?? 24 * 3_600_000;
+
+  /// Tally's scores by provider address, or null when Tally is not set, unreachable, or stale.
+  /// Whether a provider is covered right now is still read live from Surety: Tally is a snapshot.
+  async function loadTally() {
+    if (!tally) return null;
+    try {
+      const d = await getJson(`${tally}/scores.json`, 5_000);
+      if (!Array.isArray(d.providers) || !Number.isFinite(d.updatedAt)) return null;
+      if (now() - d.updatedAt * 1000 > tallyMaxAgeMs) return null;
+      const byAddr = new Map();
+      for (const p of d.providers) {
+        const score = Number(p.score);
+        if (ethers.isAddress(p.provider) && Number.isFinite(score) && score >= 0 && score <= 100) {
+          byAddr.set(ethers.getAddress(p.provider), { score, demo: Array.isArray(p.flags) && p.flags.includes("demo") });
+        }
+      }
+      return byAddr;
+    } catch {
+      return null;
+    }
+  }
   const vault =
     o.vault || new ethers.Contract(o.vaultAddress, VAULT_ABI, new ethers.JsonRpcProvider(o.rpc, undefined, { staticNetwork: true }));
 
@@ -80,8 +108,10 @@ function createRegistry(o) {
     }
   }
 
-  async function indexProvider(t) {
+  async function indexProvider(t, tallyScores) {
     const addr = ethers.getAddress(t.provider);
+    const verified = tallyScores ? tallyScores.get(addr) : null;
+    if (verified && verified.demo) return []; // says itself that it fails on purpose
     const rec = await vault.providers(addr);
     if (!rec.registered || !rec.metadataURI) return [];
     const doc = await loadSlaDoc(rec.metadataURI);
@@ -108,7 +138,9 @@ function createRegistry(o) {
         probeLatencyMs: p.latencyMs,
         probe: p.note,
         active: Boolean(t.active),
-        score: Number(t.score) || 0,
+        // Tally's score when it has one for this provider; the relay's own otherwise.
+        score: verified ? verified.score : Number(t.score) || 0,
+        scoreSource: verified ? "tally" : "relay",
         passRate: t.passRate ?? null,
         calls: Number(t.calls) || 0,
         committedCover: String(t.committedCover ?? "0"),
@@ -118,7 +150,7 @@ function createRegistry(o) {
     return routes;
   }
 
-  let state = { at: 0, routes: [], providers: 0, errors: [] };
+  let state = { at: 0, routes: [], providers: 0, errors: [], scores: "relay" };
   let inflight = null;
 
   async function refresh() {
@@ -127,16 +159,18 @@ function createRegistry(o) {
     const extra = (o.extraProviders || []).map((a) => ethers.getAddress(a)).filter((a) => !seen.has(a));
     const extraTrust = await Promise.all(extra.map((a) => getJson(`${surety}/trust/${a}`).catch(() => null)));
     const all = [...listed, ...extraTrust.filter(Boolean)];
+    const tallyScores = await loadTally();
     const errors = [];
+    if (tally && !tallyScores) errors.push({ provider: null, error: "tally_unavailable_or_stale: ranking by the relay's scores" });
     const results = await Promise.all(
       all.map((t) =>
-        indexProvider(t).catch((e) => {
+        indexProvider(t, tallyScores).catch((e) => {
           errors.push({ provider: t.provider, error: String(e.message || e).slice(0, 120) });
           return [];
         })
       )
     );
-    state = { at: now(), routes: results.flat(), providers: all.length, errors };
+    state = { at: now(), routes: results.flat(), providers: all.length, errors, scores: tallyScores ? "tally" : "relay" };
     return state;
   }
 
@@ -179,7 +213,7 @@ function createRegistry(o) {
         if (c.bestPrice == null || BigInt(r.price) < BigInt(c.bestPrice)) c.bestPrice = r.price;
       }
     }
-    return { indexedAt: s.at ? new Date(s.at).toISOString() : null, providers: s.providers, capabilities: Object.values(out), errors: s.errors };
+    return { indexedAt: s.at ? new Date(s.at).toISOString() : null, providers: s.providers, scores: s.scores, capabilities: Object.values(out), errors: s.errors };
   }
 
   return { rank, capabilities, snapshot, refresh, probe };

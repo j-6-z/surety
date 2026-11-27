@@ -56,17 +56,25 @@ function buildSuretyApp(c) {
   // the relay's signer (c.wallet), the provider being sold, and whoever pays for the homepage demo.
   const providerAddress = c.providerAddress || c.wallet.address;
   const demoWallet = c.demo === false ? null : c.demoWallet === undefined ? c.wallet : c.demoWallet;
+  // The slow demo fails on purpose. Given a provider of its own, its refunds come out of that
+  // provider's bond and the Market Data API's on-chain record only shows real calls.
+  const demoProvider =
+    demoWallet && c.demoProviderAddress && ethers.getAddress(c.demoProviderAddress) !== ethers.getAddress(providerAddress)
+      ? ethers.getAddress(c.demoProviderAddress)
+      : null;
+  const demoPayTo = demoProvider ? c.demoPayTo || derivePayTo(demoWallet.privateKey) : null;
   const api = createMarketApi({
     reader: c.reader, network: c.network, usdc: c.usdcAddress, payTo, tokenDomain: c.tokenDomain,
     facilitatorUrl: c.facilitatorUrl, price: c.price, publicUrl: c.publicUrl,
     landing: { provider: providerAddress, vaultAddress: c.vaultAddress, ...(c.repoUrl ? { repoUrl: c.repoUrl } : {}) },
-    demo: demoWallet ? { ...c.demo } : undefined,
+    agent: { id: c.agentId, registry: profile && profile.identityRegistry ? `${c.network}:${c.identityRegistry || profile.identityRegistry}` : undefined },
+    demo: demoWallet ? { ...c.demo, ...(demoProvider ? { payTo: demoPayTo } : {}) } : undefined,
   });
   const relay = createRelay({
     vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, signer: c.wallet,
     dataDir: c.dataDir, allowInsecure: c.allowInsecure,
     routerAddress: c.routerAddress, remote: c.remote, flushAt: c.flushAt,
-    skipStats: (addr, p) => addr === providerAddress && p === "/v1/demo/slow",
+    skipStats: (addr, p) => (addr === providerAddress || addr === demoProvider) && p === "/v1/demo/slow",
   });
   const app = express();
   app.disable("x-powered-by");
@@ -75,7 +83,7 @@ function buildSuretyApp(c) {
   );
   if (demoWallet) {
     const demo = createDemo({
-      wallet: demoWallet, providerAddress, vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, network: c.network,
+      wallet: demoWallet, providerAddress, slowProviderAddress: demoProvider || undefined, vaultAddress: c.vaultAddress, usdcAddress: c.usdcAddress, network: c.network,
       publicUrl: c.publicUrl, explorer: c.explorer, ...c.demo,
     });
     app.post("/demo/run", demo.handleRun);
@@ -89,7 +97,8 @@ function buildSuretyApp(c) {
   let directory = { at: 0, body: null };
   async function listProviders() {
     if (directory.body && Date.now() - directory.at < 15_000) return directory.body;
-    const addrs = [...new Set([providerAddress, ...(c.directory || []), ...announced, ...relay.known()].map((a) => ethers.getAddress(a)))];
+    const addrs = [...new Set([providerAddress, ...(c.directory || []), ...announced, ...relay.known()].map((a) => ethers.getAddress(a)))]
+      .filter((a) => a !== demoProvider); // the demo provider is not an API anyone should route to
     const providers = (
       await Promise.all(
         addrs.map(async (addr) => {
@@ -140,7 +149,10 @@ function buildSuretyApp(c) {
       ? res.status(404).type("html").send(notFoundPage(page))
       : res.status(404).json({ error: "not_found" })
   );
-  return { app, payTo, slaUrl: `${c.publicUrl}/.well-known/surety.json` };
+  return {
+    app, payTo, slaUrl: `${c.publicUrl}/.well-known/surety.json`,
+    demoProvider, demoPayTo, demoSlaUrl: demoProvider ? `${c.publicUrl}/.well-known/surety-demo.json` : null,
+  };
 }
 
 /// Points the on-chain provider record at `slaUrl`. Sends a transaction only if it needs changing.
@@ -193,7 +205,12 @@ async function startSurety(c) {
   if (provider === c.wallet.address) await pointProviderAt(c.wallet, c.vaultAddress, built.slaUrl, log);
   else log(`  provider ${provider} is a separate wallet: point its listing here with scripts/set-host.js`);
   log(`  agents call:  ${url}/call/${provider}/v1/price/mon`);
-  return { url, provider, payTo: built.payTo, close: () => new Promise((r) => server.close(r)) };
+  if (built.demoProvider) log(`  demo provider ${built.demoProvider}: list and bond it with scripts/demo-provider.js`);
+  return {
+    url, provider, payTo: built.payTo,
+    demoProvider: built.demoProvider, demoPayTo: built.demoPayTo, demoSlaUrl: built.demoSlaUrl,
+    close: () => new Promise((r) => server.close(r)),
+  };
 }
 
 /// Reads the standard settings from environment variables.
@@ -204,6 +221,12 @@ async function startSurety(c) {
 ///   PROVIDER_ADDRESS   the wallet the Market Data API is listed and bonded under (address only).
 ///   PAY_TO_ADDRESS     where API payments land (address only).
 ///   DEMO_KEY           optional: a small wallet that pays for homepage demo calls. No key, no demo.
+///   AGENT_ID           optional: the provider's ERC-8004 agent id (scripts/register-agent.js creates it).
+///                      Put in the SLA document so a reputation service can link the agent to the bond.
+///   DEMO_PROVIDER_ADDRESS  optional: a second provider that the slow demo is listed and bonded under,
+///                      so its deliberate refunds stay off the real API's record. It can be the
+///                      DEMO_KEY wallet itself. Set it up with scripts/demo-provider.js.
+///   DEMO_PAY_TO_ADDRESS    optional: where slow-demo payments land (default: derived from DEMO_KEY).
 ///
 /// Refunds on another chain (stage two, see CROSSCHAIN.md) switch on with one more setting:
 ///   ROUTER_ADDRESS     the SuretyRouter that is the vault's arbiter. Claims are then filed through
@@ -231,6 +254,16 @@ function configFromEnv(env = process.env) {
       ...(env.FLUSH_AT !== undefined && env.FLUSH_AT !== "" ? { flushAt: Number(env.FLUSH_AT) } : {}),
     };
   }
+  for (const k of ["DEMO_PROVIDER_ADDRESS", "DEMO_PAY_TO_ADDRESS"]) {
+    if (env[k] && !ethers.isAddress(env[k])) throw new Error(`${k} must be an address (not a key).`);
+  }
+  if (env.DEMO_PROVIDER_ADDRESS) {
+    const main = env.PROVIDER_ADDRESS ? ethers.getAddress(env.PROVIDER_ADDRESS) : wallet.address;
+    if (ethers.getAddress(env.DEMO_PROVIDER_ADDRESS) === main) throw new Error("DEMO_PROVIDER_ADDRESS must be a different wallet from the provider it keeps the demo away from.");
+    const payTo = env.PAY_TO_ADDRESS && ethers.getAddress(env.PAY_TO_ADDRESS);
+    if (env.DEMO_PAY_TO_ADDRESS && ethers.getAddress(env.DEMO_PAY_TO_ADDRESS) === payTo) throw new Error("DEMO_PAY_TO_ADDRESS must differ from PAY_TO_ADDRESS, or demo payments would count as real ones.");
+  }
+  if (env.AGENT_ID && !/^\d+$/.test(env.AGENT_ID)) throw new Error("AGENT_ID must be a whole number: the id scripts/register-agent.js printed.");
   const host = env.VERCEL_PROJECT_PRODUCTION_URL || env.VERCEL_URL || env.RAILWAY_PUBLIC_DOMAIN;
   const publicUrl = (env.PUBLIC_URL || env.RENDER_EXTERNAL_URL || (host && `https://${host}`) || "").replace(/\/+$/, "") || undefined;
   return {
@@ -238,6 +271,10 @@ function configFromEnv(env = process.env) {
     providerAddress: env.PROVIDER_ADDRESS ? ethers.getAddress(env.PROVIDER_ADDRESS) : wallet.address,
     // Testnet: the one wallet pays for demos too. Mainnet: only a wallet set aside for it.
     demoWallet: env.DEMO_KEY ? new ethers.Wallet(hex(env.DEMO_KEY), rpc) : net.real ? null : wallet,
+    agentId: env.AGENT_ID || undefined,
+    identityRegistry: net.identityRegistry,
+    demoProviderAddress: env.DEMO_PROVIDER_ADDRESS ? ethers.getAddress(env.DEMO_PROVIDER_ADDRESS) : undefined,
+    demoPayTo: env.DEMO_PAY_TO_ADDRESS ? ethers.getAddress(env.DEMO_PAY_TO_ADDRESS) : undefined,
     vaultAddress: env.VAULT_ADDRESS,
     usdcAddress: net.usdc,
     network: env.X402_NETWORK || net.caip,

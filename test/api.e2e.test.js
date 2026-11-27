@@ -357,6 +357,114 @@ describe("start.js: relay and API on one port", function () {
       await new Promise((r) => facilitator.close(r));
     }
   });
+
+  it("gives the slow demo a provider of its own, so its refunds stay off the real API's record", async () => {
+    const { startSurety } = require("../start");
+    const { demoProvider } = require("../scripts/demo-provider");
+    const T = await ethers.getContractFactory("MockToken");
+    const wmon = await T.deploy("Wrapped MON", "WMON", 18);
+    const dataUsdc = await T.deploy("USD Coin", "USDC", 6);
+    const factory = await (await ethers.getContractFactory("MockV3Factory")).deploy();
+    const usdcIs0 = (await dataUsdc.getAddress()).toLowerCase() < (await wmon.getAddress()).toLowerCase();
+    const pool = await (await ethers.getContractFactory("MockV3Pool")).deploy(
+      await wmon.getAddress(), await dataUsdc.getAddress(), 3000, sqrtPriceFor(0.0117, usdcIs0)
+    );
+    await dataUsdc.mint(await pool.getAddress(), usd(68_000));
+    await factory.setPool(await wmon.getAddress(), await dataUsdc.getAddress(), 3000, await pool.getAddress());
+
+    const operator = ethers.Wallet.createRandom().connect(ethers.provider); // owner, arbiter and the real provider
+    const demoWallet = ethers.Wallet.createRandom().connect(ethers.provider); // pays for demos AND is the demo provider
+    for (const w of [operator, demoWallet]) await ethers.provider.send("hardhat_setBalance", [w.address, "0x56BC75E2D63100000"]);
+    const payUsdc = await (await ethers.getContractFactory("MockUSDC")).deploy();
+    const payAddr = await payUsdc.getAddress();
+    await payUsdc.mint(operator.address, usd(5));
+    await payUsdc.mint(demoWallet.address, usd(2));
+    const vault = await (await ethers.getContractFactory("SuretyVault", operator)).deploy(
+      payAddr, operator.address, operator.address, operator.address, usd(0.5), 7 * 86400, 500
+    );
+    const vaultAddress = await vault.getAddress();
+    const { chainId } = await ethers.provider.getNetwork();
+    const network = `eip155:${chainId}`;
+    const facilitator = await startFakeFacilitator({ usdc: payUsdc, network, wallets: { [demoWallet.address.toLowerCase()]: demoWallet } });
+    const s = await startSurety({
+      wallet: operator, demoWallet, demoProviderAddress: demoWallet.address,
+      vaultAddress, usdcAddress: payAddr, network,
+      facilitatorUrl: `http://127.0.0.1:${facilitator.address().port}`,
+      reader: createPriceReader({
+        provider: ethers.provider, cacheMs: 0, factories: [{ dex: "mock-v3", address: await factory.getAddress() }],
+        wmon: await wmon.getAddress(), usdc: await dataUsdc.getAddress(),
+      }),
+      host: "127.0.0.1", allowInsecure: true, log: () => {},
+      demo: { slowMs: 300, promiseMs: 100, cooldownMs: { good: 0, slow: 0 } },
+      dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "surety-demo-")),
+    });
+    try {
+      // Two SLA documents: the real API's no longer lists the demo endpoint, the demo's lists nothing else.
+      const sla = await (await fetch(`${s.url}/.well-known/surety.json`)).json();
+      expect(sla.endpoints.map((e) => e.path)).to.deep.equal(["/v1/price/mon", "/v1/pool/:address"]);
+      const demoSla = await (await fetch(s.demoSlaUrl)).json();
+      expect(demoSla).to.deep.include({ version: 1, demo: true, baseUrl: s.url, payTo: s.demoPayTo });
+      expect(demoSla.endpoints).to.deep.equal([{ method: "GET", path: "/v1/demo/slow", maxLatencyMs: 100 }]);
+      expect(s.demoProvider).to.equal(demoWallet.address);
+      expect(s.demoPayTo).to.not.equal(s.payTo);
+
+      // The setup script: reports first, then lists and bonds, and is safe to run twice.
+      const lines = [];
+      const script = (extra) => demoProvider({ wallet: demoWallet, vaultAddress, usdcAddress: payAddr, url: s.url, log: (m) => lines.push(m), ...extra });
+      const before = await script({});
+      expect(before).to.include({ registered: false, active: false, hostReady: true });
+      const done = await script({ setup: true });
+      expect(done).to.include({ registered: true, active: true, bond: usd(0.6) }); // minimum + 0.1
+      expect((await vault.providers(demoWallet.address)).metadataURI).to.equal(s.demoSlaUrl);
+      expect(await payUsdc.allowance(demoWallet.address, vaultAddress)).to.equal(0n); // approved exactly the bond
+      const txCount = await ethers.provider.getTransactionCount(demoWallet.address);
+      await script({ setup: true });
+      expect(await ethers.provider.getTransactionCount(demoWallet.address)).to.equal(txCount); // nothing left to do
+      expect(lines.join("\n")).to.contain("All set");
+      let short;
+      try { await script({ setup: true, bond: usd(50) }); } catch (e) { short = e.message; }
+      expect(short).to.contain("needs").and.to.contain("more for the bond");
+      expect(await ethers.provider.getTransactionCount(demoWallet.address)).to.equal(txCount); // refused before sending anything
+
+      await payUsdc.connect(operator).approve(vaultAddress, ethers.MaxUint256);
+      await vault.connect(operator).depositBond(usd(1));
+
+      const demo = async (kind) => {
+        const res = await fetch(`${s.url}/demo/run?kind=${kind}`, { method: "POST" });
+        return { http: res.status, ...(await res.json()) };
+      };
+      const good = await demo("good");
+      expect(good.verdict).to.equal("pass"); // the good demo still calls the real API
+      expect(await payUsdc.balanceOf(s.payTo)).to.equal(usd(0.001));
+
+      const slow = await demo("slow");
+      expect(slow.verdict).to.equal("fail");
+      expect(slow.reason).to.equal("too_slow");
+      expect(slow.promisedMs).to.equal(100);
+      expect(slow.refund.payout).to.equal(usd(0.001).toString());
+      expect(await payUsdc.balanceOf(s.demoPayTo)).to.equal(usd(0.001)); // paid to the demo's own address
+      expect(await payUsdc.balanceOf(s.payTo)).to.equal(usd(0.001)); // the real API's income is only its real call
+
+      // The refund came out of the demo provider's bond. The real API's record is untouched.
+      const real = await vault.providers(operator.address);
+      expect(real.claimCount).to.equal(0n);
+      expect(real.bond).to.equal(usd(1));
+      const demoRec = await vault.providers(demoWallet.address);
+      expect(demoRec.claimCount).to.equal(1n);
+      expect(usd(0.6) - demoRec.bond).to.equal(usd(0.00105)); // refund + 5% fee
+
+      // The relay's own score and the directory only know the real API.
+      const client = createSuretyClient({ relayUrl: s.url, fetch });
+      const t = await client.trust(operator.address);
+      expect(t.calls).to.equal(1);
+      expect(t.passRate).to.equal(1);
+      const dir = await (await fetch(`${s.url}/providers.json`)).json();
+      expect(dir.providers.map((p) => p.provider)).to.deep.equal([operator.address]);
+    } finally {
+      await s.close();
+      await new Promise((r) => facilitator.close(r));
+    }
+  });
 });
 
 describe("app.js (Vercel entry point)", () => {

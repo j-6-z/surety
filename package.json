@@ -22,6 +22,8 @@
     "relay": "node verifier/server.js",
     "api": "node marketdata/server.js",
     "check:api": "node scripts/api-check.js",
+    "demo:provider": "node scripts/demo-provider.js",
+    "agent": "node scripts/register-agent.js",
     "start": "node start.js",
     "build": "node scripts/generate.js",
     "sync:kit": "node scripts/sync-kit.js",

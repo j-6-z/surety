@@ -45,6 +45,32 @@ Three real paid calls of $0.001: one good, one slow, one broken. The two bad one
 
 **5. Only then, the server.** In the host's settings: `SURETY_NETWORK=mainnet`, `VAULT_ADDRESS`, `ARBITER_KEY`, `PROVIDER_ADDRESS`, `PAY_TO_ADDRESS`, `PUBLIC_URL`. Add `DEMO_KEY` if you want the homepage demo, funded with a dollar or two.
 
+## Keep the demo's refunds off your real record
+
+The homepage's slow demo fails on purpose, so every run is a refund. Listed under your real API, each one counts against it on-chain, where anyone scoring providers will see it. Give the demo a provider of its own:
+
+**1. List and bond it.** With `DEMO_KEY` and `SURETY_NETWORK=mainnet` in `.env`, and a little MON plus about 1.1 USDC in the demo wallet:
+
+```
+npm run demo:provider -- https://your-domain setup
+```
+
+The demo wallet becomes the demo provider. Refunds are paid back to that same wallet, so the bond only shrinks by the protocol fee.
+
+**2. Switch the host over.** Add `DEMO_PROVIDER_ADDRESS` (the address the script prints) to the host's settings and redeploy. Run the script again without `setup` to confirm it says "All set".
+
+Refunds already recorded against your real API stay there. This only stops new ones.
+
+## Give your provider an ERC-8004 identity
+
+Reputation services that follow ERC-8004 (Tally among them) attach scores to an agent id, not an address. To get one, with the **provider** wallet's key as `PRIVATE_KEY` in `.env`:
+
+```
+npm run agent -- https://your-domain register
+```
+
+Then add `AGENT_ID` (the id it prints) to the host's settings and redeploy. The agent must belong to the provider's own wallet: that is what proves the agent and the bonded provider are the same.
+
 ## Not done yet
 
 - **The site's wording.** The pages, docs and FAQ still say testnet and test funds. They must be rewritten before the public site points at mainnet.

@@ -68,6 +68,36 @@ describe("Mainnet readiness", function () {
       expect(withDemo.demoWallet.address).to.not.equal(withDemo.wallet.address);
       expect(withDemo.tokenDomain).to.deep.equal({ name: "USD Coin", version: "2" });
     });
+    it("takes a separate demo provider, and refuses one that is not separate", () => {
+      const env = { ...base, SURETY_NETWORK: "mainnet", ARBITER_KEY: KEY, PROVIDER_ADDRESS: B, PAY_TO_ADDRESS: C, DEMO_KEY: KEY2 };
+      const demoAddr = new ethers.Wallet(KEY2).address;
+      expect(configFromEnv(env).demoProviderAddress).to.equal(undefined);
+      const c = configFromEnv({ ...env, DEMO_PROVIDER_ADDRESS: demoAddr.toLowerCase() });
+      expect(c.demoProviderAddress).to.equal(demoAddr);
+      expect(c.demoPayTo).to.equal(undefined); // derived from the demo key when the app is built
+      expect(() => configFromEnv({ ...env, DEMO_PROVIDER_ADDRESS: B })).to.throw("different wallet");
+      expect(() => configFromEnv({ ...env, DEMO_PROVIDER_ADDRESS: KEY2 })).to.throw("must be an address");
+      expect(() => configFromEnv({ ...env, DEMO_PROVIDER_ADDRESS: demoAddr, DEMO_PAY_TO_ADDRESS: C })).to.throw("differ from PAY_TO_ADDRESS");
+    });
+    it("carries an ERC-8004 agent id into the SLA and the registration file", async () => {
+      const env = { ...base, SURETY_NETWORK: "mainnet", ARBITER_KEY: KEY, PROVIDER_ADDRESS: B, PAY_TO_ADDRESS: C };
+      expect(() => configFromEnv({ ...env, AGENT_ID: "0x2a" })).to.throw("whole number");
+      const serve = async (c) => {
+        const { app } = buildSuretyApp({ ...c, reader: {} });
+        const server = await new Promise((r) => { const h = app.listen(0, "127.0.0.1", () => r(h)); });
+        const get = async (p) => (await fetch(`http://127.0.0.1:${server.address().port}${p}`)).json();
+        try { return { sla: await get("/.well-known/surety.json"), file: await get("/.well-known/agent-registration.json") }; }
+        finally { await new Promise((r) => server.close(r)); }
+      };
+      const without = await serve(configFromEnv(env));
+      expect(without.sla).to.not.have.property("agentId");
+      expect(without.file.type).to.equal("https://eips.ethereum.org/EIPS/eip-8004#registration-v1");
+      expect(without.file.registrations).to.deep.equal([]); // served before the agent exists, so it can be registered
+      const withId = await serve(configFromEnv({ ...env, AGENT_ID: "42" }));
+      expect(withId.sla.agentId).to.equal("42");
+      expect(withId.file.registrations).to.deep.equal([{ agentId: 42, agentRegistry: `eip155:143:${NETWORKS.mainnet.identityRegistry}` }]);
+      expect(withId.file).to.include({ x402Support: true, active: true, image: "https://s.example/og.png" });
+    });
     it("refuses a mainnet setup that would run everything from one key", () => {
       const m = { ...base, SURETY_NETWORK: "mainnet" };
       expect(() => configFromEnv({ ...m, ARBITER_KEY: KEY })).to.throw("PROVIDER_ADDRESS and PAY_TO_ADDRESS");
@@ -159,6 +189,45 @@ describe("Mainnet readiness", function () {
       const err = await main({ wallet: other, vaultAddress: await s.vault.getAddress(), usdcAddress: s.usdcAddr, network: s.caip, facilitatorUrl: s.net.facilitatorUrl, ownerElsewhere: true, log() {} }).then(() => null, (e) => e.message);
       expect(err).to.contain("must be the vault's arbiter");
     });
+  });
+});
+
+describe("ERC-8004 identity (scripts/register-agent.js)", function () {
+  it("registers one agent per provider, owned by the provider, pointing at the host", async () => {
+    const { registerAgent, TYPE } = require("../scripts/register-agent");
+    const registry = await (await ethers.getContractFactory("MockIdentityRegistry")).deploy();
+    const identityRegistry = await registry.getAddress();
+    const provider = ethers.Wallet.createRandom().connect(ethers.provider);
+    const other = ethers.Wallet.createRandom().connect(ethers.provider);
+    for (const w of [provider, other]) await ethers.provider.send("hardhat_setBalance", [w.address, "0x56BC75E2D63100000"]);
+    let listed = [];
+    const url = "https://api.example";
+    const fakeFetch = async (u) =>
+      String(u) === `${url}/.well-known/agent-registration.json`
+        ? new Response(JSON.stringify({ type: TYPE, registrations: listed.map((agentId) => ({ agentId })) }))
+        : new Response("no", { status: 404 });
+    const lines = [];
+    const run = (extra) => registerAgent({ wallet: provider, identityRegistry, url, fetch: fakeFetch, log: (m) => lines.push(m), ...extra });
+    const fails = async (p, text) => { let m = ""; try { await p; } catch (e) { m = e.message; } expect(m).to.contain(text); };
+
+    expect((await run({})).agentId).to.equal(null); // reporting sends nothing
+    expect(await registry.balanceOf(provider.address)).to.equal(0n);
+    const made = await run({ register: true });
+    expect(made).to.deep.include({ agentId: "1", hostLists: false });
+    expect(await registry.ownerOf(1)).to.equal(provider.address);
+    expect(await registry.tokenURI(1)).to.equal(`${url}/.well-known/agent-registration.json`);
+    expect(lines.join("\n")).to.contain("AGENT_ID=1");
+
+    await fails(run({ register: true }), "already owns 1 agent"); // never a second agent for the same provider
+    listed = [1];
+    const nonce = await ethers.provider.getTransactionCount(provider.address);
+    expect(await run({ register: true, agentId: "1" })).to.deep.include({ agentId: "1", hostLists: true });
+    expect(await ethers.provider.getTransactionCount(provider.address)).to.equal(nonce); // already right: nothing sent
+
+    await (await registry.connect(other).register("https://else.example/a.json")).wait(); // agent 2 is someone else's
+    await fails(run({ register: true, agentId: "2" }), "does not belong");
+    await fails(run({ agentId: "99" }), "no such agent");
+    await fails(registerAgent({ wallet: provider, identityRegistry, url: "https://down.example", fetch: fakeFetch, log: () => {} }), "Deploy the server first");
   });
 });
 

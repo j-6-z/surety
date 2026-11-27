@@ -139,6 +139,7 @@ function buildApp(c) {
         priceUsd: atomicToUsd(r.price),
         maxLatencyMs: r.maxLatencyMs,
         score: r.score,
+        scoreSource: r.scoreSource,
         passRate: r.passRate,
         calls: r.calls,
         committedCover: r.committedCover,

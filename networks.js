@@ -8,6 +8,7 @@ const NETWORKS = {
     rpc: "https://testnet-rpc.monad.xyz",
     usdc: "0x534b2f3A21130d7a60830c2Df862319e593943A3", usdcLabel: "test USDC",
     explorer: "https://testnet.monadvision.com",
+    identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e", // ERC-8004, same on every testnet
     hardhat: "monadTestnet",
   },
   mainnet: {
@@ -17,6 +18,7 @@ const NETWORKS = {
     rpc: "https://rpc.monad.xyz",
     usdc: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", usdcLabel: "USDC",
     explorer: "https://monadvision.com",
+    identityRegistry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", // ERC-8004, same on every mainnet
     hardhat: "monadMainnet",
   },
 };
@@ -33,6 +35,7 @@ function networkFromEnv(env = process.env) {
     rpc: rpcOverride || base.rpc,
     usdc: env.USDC_ADDRESS || base.usdc,
     vault: env.VAULT_ADDRESS || base.vault,
+    identityRegistry: env.IDENTITY_REGISTRY || base.identityRegistry,
     explorer: (env.EXPLORER_URL || base.explorer).replace(/\/+$/, ""),
     facilitatorUrl: env.FACILITATOR_URL || FACILITATOR,
   };

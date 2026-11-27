@@ -17,6 +17,8 @@ Switchboard **holds no key and never touches the agent's call or money.** It onl
 3. **Each SLA document**: the endpoints. An endpoint's capability is its own `"capability"` field if it has one, otherwise a match in `capabilities.json` (e.g. `/v1/price/mon` → `price.mon`).
 4. **An unpaid probe** of each endpoint: is it up, how fast, and its real price, read from its own 402 answer. Nobody is charged.
 
+5. **Tally's `/scores.json`** (optional, `TALLY_URL`): a trust score rebuilt from chain data alone. When set, it replaces the relay's score, and a provider Tally flags as a demo is never routed to. Each candidate says which it got in `scoreSource`. If Tally is unreachable or its scores are older than 24 hours, the relay's scores are used instead.
+
 Refreshed every 60 seconds. Only covered, reachable, priced endpoints are routable.
 
 ## Endpoints
@@ -71,6 +73,6 @@ npm start            # http://localhost:8403
 - Stats are kept in memory and reset when a serverless instance restarts.
 - `/v1/capabilities` is free and shows best prices; the paid lookup is the ranked, ready-to-call list.
 - Price is what the provider's 402 says at probe time; the agent's own x402 client still enforces its cap on every payment.
-- Ranking trusts Surety's relay for trust scores and cover.
+- Without `TALLY_URL`, ranking trusts Surety's relay for trust scores. With it, only for whether a provider is covered right now.
 
 MIT

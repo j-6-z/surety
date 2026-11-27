@@ -183,6 +183,54 @@ describe("Surety Guard (spending limits)", function () {
     expect((await s.agentWith({ minTrustScore: 10 }).surety.call(s.good, "/cheap")).verdict).to.equal("pass");
   });
 
+  it("with Tally set, judges providers by its chain-verified score, and says which score it used", async () => {
+    let body = { updatedAt: Math.floor(Date.now() / 1000), providers: [{ provider: s.good.toLowerCase(), score: 41.5, flags: [] }] };
+    let up = true, hits = 0;
+    const tally = require("http").createServer((req, res) => {
+      hits += 1;
+      if (!up || req.url !== "/scores.json") return res.writeHead(503).end();
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+    });
+    await new Promise((r) => tally.listen(0, "127.0.0.1", r));
+    const tallyUrl = `http://127.0.0.1:${tally.address().port}`;
+    const before = await s.balance();
+    try {
+      // The relay scores this provider 60; Tally says 41.5. Tally's number decides.
+      const strict = s.agentWith({ minTrustScore: 50, tallyUrl });
+      expect(strict.guard.limits.scoreSource).to.equal("tally");
+      let e = await s.blocked(strict.surety.call(s.good, "/cheap"));
+      expect(e).to.include({ code: "trust_too_low", score: 41.5, scoreSource: "tally" });
+      expect(await s.balance()).to.equal(before);
+      const loose = s.agentWith({ minTrustScore: 40, tallyUrl });
+      expect((await loose.surety.call(s.good, "/cheap")).verdict).to.equal("pass");
+      const seen = hits;
+      expect((await loose.surety.call(s.good, "/cheap")).verdict).to.equal("pass");
+      expect(hits).to.equal(seen); // one small file, reused: not fetched per call
+
+      // A provider that says it is a demo is never paid, whatever its score.
+      body = { ...body, providers: [{ provider: s.good, score: 99, flags: ["demo"] }] };
+      e = await s.blocked(s.agentWith({ tallyUrl }).surety.call(s.good, "/cheap"));
+      expect(e.code).to.equal("demo_provider");
+
+      // Stale, unreachable, or silent about this provider: the relay's score by default, or refuse if asked.
+      body = { updatedAt: Math.floor(Date.now() / 1000) - 25 * 3600, providers: [{ provider: s.good, score: 1, flags: [] }] };
+      expect((await s.agentWith({ minTrustScore: 50, tallyUrl }).surety.call(s.good, "/cheap")).verdict).to.equal("pass");
+      e = await s.blocked(s.agentWith({ minTrustScore: 50, tallyUrl, tallyFallback: "block" }).surety.call(s.good, "/cheap"));
+      expect(e.code).to.equal("tally_unavailable");
+      up = false;
+      e = await s.blocked(s.agentWith({ tallyUrl, tallyFallback: "block" }).surety.call(s.good, "/cheap"));
+      expect(e.code).to.equal("tally_unavailable");
+      e = await s.blocked(s.agentWith({ minTrustScore: 99, tallyUrl }).surety.call(s.good, "/cheap"));
+      expect(e).to.include({ code: "trust_too_low", scoreSource: "relay" });
+      // The bond check is still the relay's, Tally or not.
+      e = await s.blocked(s.agentWith({ tallyUrl }).surety.call(s.unbonded, "/cheap"));
+      expect(e.code).to.equal("provider_not_bonded");
+      expect(() => createGuard({ relayUrl: s.relayUrl, tallyUrl, tallyFallback: "ignore" })).to.throw("tallyFallback");
+    } finally {
+      await new Promise((r) => tally.close(r));
+    }
+  });
+
   it("refuses to pay around the relay, where nothing could be refunded", async () => {
     const a = s.agentWith({});
     const before = await s.balance();

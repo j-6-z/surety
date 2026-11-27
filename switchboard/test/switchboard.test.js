@@ -64,7 +64,7 @@ test.before(async () => {
   const { app } = buildApp({ registry, suretyUrl: su.url, caip: CAIP, usdc: USDC, label: "test", paywall: (a) => a.use("/v1/route", (_q, _r, next) => { paywallHits++; next(); }) });
   const sb = await listen(app);
   servers.push(sb.s);
-  ctx = { registry, url: sb.url, paywallHits: () => paywallHits };
+  ctx = { registry, url: sb.url, paywallHits: () => paywallHits, records, suretyUrl: su.url };
 });
 test.after(() => servers.forEach((s) => s.close()));
 
@@ -86,6 +86,46 @@ test("registry ranks covered, live providers by price and skips the rest", async
   assert.deepEqual((await ctx.registry.rank("price.eth")).map((x) => x.provider), [E]); // capability from the SLA itself
 });
 
+test("with Tally set, ranking uses its chain-verified scores and never routes to a demo provider", async () => {
+  const records = ctx.records;
+  const vault = { providers: async (a) => ({ registered: true, metadataURI: records[a] }) };
+  let updatedAt = Math.floor(Date.now() / 1000);
+  let up = true;
+  const tally = express();
+  tally.get("/scores.json", (_q, res) =>
+    up
+      ? res.json({ updatedAt, providers: [
+          { provider: A.toLowerCase(), score: 91.5, flags: [] }, // the relay says 70
+          { provider: B, score: 40.7, flags: ["pay_to_changed"] }, // the relay says 80
+          { provider: E, score: 99, flags: ["demo"] },
+          { provider: "not-an-address", score: 100, flags: [] },
+          { provider: D, score: 500, flags: [] }, // out of range: ignored
+        ] })
+      : res.status(503).end()
+  );
+  const t = await listen(tally);
+  servers.push(t.s);
+  const mk = () => createRegistry({ suretyUrl: ctx.suretyUrl, caip: CAIP, usdc: USDC, vault, extraProviders: [E], allowInsecure: true, probeTimeoutMs: 800, tallyUrl: t.url, ttlMs: 0 });
+
+  const reg = mk();
+  const ranked = await reg.rank("price.mon");
+  assert.deepEqual(ranked.map((x) => [x.provider, x.score, x.scoreSource]), [[A, 91.5, "tally"], [B, 40.7, "tally"]]);
+  assert.deepEqual((await reg.rank("price.mon", { minTrust: 75 })).map((x) => x.provider), [A]); // was B on the relay's scores
+  assert.deepEqual(await reg.rank("price.eth"), []); // E is a demo provider
+  assert.equal((await reg.capabilities()).scores, "tally");
+
+  // Stale or unreachable: back to the relay's scores, and it says so.
+  updatedAt -= 25 * 3600;
+  const stale = mk();
+  assert.deepEqual((await stale.rank("price.mon")).map((x) => [x.score, x.scoreSource]), [[70, "relay"], [80, "relay"]]);
+  assert.deepEqual((await stale.rank("price.eth")).map((x) => x.provider), [E]);
+  const caps = await stale.capabilities();
+  assert.equal(caps.scores, "relay");
+  assert.match(caps.errors[0].error, /tally_unavailable_or_stale/);
+  up = false;
+  assert.deepEqual((await mk().rank("price.mon", { minTrust: 75 })).map((x) => x.provider), [B]);
+});
+
 test("server: bad input and empty answers are refused before the paywall", async () => {
   const before = ctx.paywallHits();
   assert.equal((await fetch(`${ctx.url}/v1/route?capability=BAD!`)).status, 400);
@@ -97,6 +137,7 @@ test("server: bad input and empty answers are refused before the paywall", async
   assert.equal(ctx.paywallHits(), before + 1);
   const body = await ok.json();
   assert.equal(body.candidates[0].provider, A);
+  assert.equal(body.candidates[0].scoreSource, "relay"); // no Tally configured here
   assert.match(body.candidates[0].callUrl, new RegExp(`/call/${A}/v1/price/mon$`));
   const caps = await (await fetch(`${ctx.url}/v1/capabilities`)).json();
   assert.equal(caps.capabilities.find((c) => c.capability === "price.mon").bestPrice, "1000");
