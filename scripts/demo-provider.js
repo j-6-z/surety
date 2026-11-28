@@ -122,7 +122,17 @@ if (require.main === module) {
     }
     bond = ethers.parseUnits(process.argv[4], 6);
   }
-  const wallet = new ethers.Wallet(DEMO_KEY.startsWith("0x") ? DEMO_KEY : `0x${DEMO_KEY}`, new ethers.JsonRpcProvider(net.rpc));
+  const key = DEMO_KEY.trim().replace(/^["']|["']$/g, "");
+  const hex = key.startsWith("0x") ? key.slice(2) : key;
+  if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
+    // Never print the value: it may be a key with a typo in it.
+    const what = /^[0-9a-fA-F]{40}$/.test(hex)
+      ? "It looks like a wallet ADDRESS (40 hex characters). DEMO_KEY must be the wallet's PRIVATE KEY (64 hex characters)."
+      : `A private key is 64 hex characters, with or without 0x in front. This one has ${hex.length} characters after the 0x.`;
+    console.error(`DEMO_KEY in .env is not a private key. ${what}`);
+    process.exit(1);
+  }
+  const wallet = new ethers.Wallet(`0x${hex}`, new ethers.JsonRpcProvider(net.rpc));
   console.log(`Network: ${net.fullName}   vault ${net.vault}\n`);
   demoProvider({ wallet, vaultAddress: net.vault, usdcAddress: net.usdc, url, setup: action === "setup", bond }).then(
     () => process.exit(0),
